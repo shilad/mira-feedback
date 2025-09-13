@@ -26,20 +26,23 @@ class LocalAnonymizer:
         return cls(
             model_name=local_config.get('name'),
             device=local_config.get('device', 'cpu'),
-            system_prompt=local_config.get('system_prompt')
+            system_prompt=local_config.get('system_prompt'),
+            max_input_tokens=local_config.get('max_input_tokens', 100)
         )
     
-    def __init__(self, model_name: Optional[str] = None, device: str = "cpu", system_prompt: Optional[str] = None):
+    def __init__(self, model_name: Optional[str] = None, device: str = "cpu", system_prompt: Optional[str] = None, max_input_tokens: int = 100):
         """Initialize the local anonymizer.
         
         Args:
             model_name: Hugging Face model name (default: Phi-3-mini)
             device: Device to run on ('cpu' or 'cuda')
             system_prompt: Optional custom system prompt for PII detection
+            max_input_tokens: Maximum tokens per chunk sent to LLM
         """
         self.model_name = model_name
         self.device = device
         self.system_prompt = system_prompt
+        self.max_input_tokens = max_input_tokens
         
         # Track entity counters for generating tags
         self.entity_counters = defaultdict(int)
@@ -49,9 +52,9 @@ class LocalAnonymizer:
         
         # Initialize LLM backend
         kwargs = { 'model_name': self.model_name } if self.model_name else {}
-        self.llm = LLMBackend(device=device, **kwargs)
+        self.llm = LLMBackend(device=device, max_input_tokens=max_input_tokens, **kwargs)
         
-        LOG.info(f"LocalAnonymizer initialized with model: {self.model_name}")
+        LOG.info(f"LocalAnonymizer initialized with model: {self.model_name}, max_input_tokens: {max_input_tokens}")
     
     def anonymize_data(self, text: str) -> Tuple[str, Dict[str, Dict[str, str]]]:
         """Anonymize PII in text.

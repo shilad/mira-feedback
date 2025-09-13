@@ -111,8 +111,8 @@ def main():
         help='Directory to anonymize'
     )
     anon_parser.add_argument(
-        '-o', '--output-dir',
-        help='Output directory (default from config)'
+        'output_dir',
+        help='Output directory for anonymized files'
     )
     anon_parser.add_argument(
         '-d', '--dry-run',

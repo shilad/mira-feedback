@@ -56,23 +56,46 @@ shilads-helpers/
 Anonymizes personally identifiable information (PII) in directories using a local LLM while preserving structure. Useful for sharing code/data samples without exposing sensitive information.
 
 ```bash
-# Anonymize a directory
-anonymize-dir anonymize /path/to/source
+# Anonymize a directory (both input and output paths are required)
+anonymize-dir anonymize /path/to/source /path/to/output
+
+# Keep original filenames (don't anonymize them)
+anonymize-dir anonymize /path/to/source /path/to/output --keep-original-filenames
 
 # Restore using saved mappings
 anonymize-dir restore anonymized_output restored_output -m anonymization_mapping.json
 
-# Run accuracy tests
+# Run accuracy tests on built-in test cases
 anonymize-dir accuracy
+
+# Run accuracy tests on custom test directory
+anonymize-dir accuracy -t /path/to/test/yaml/files
 ```
 
-The tool:
-- Uses local LLM models (e.g., Llama, Qwen) for PII detection
-- Falls back to regex patterns when LLM is unavailable
-- Detects and anonymizes names, emails, phone numbers, SSNs, credit cards, IP addresses
-- Preserves file structure and functionality
-- Saves mappings for complete reversibility
-- Configurable via `config/default.yaml`
+#### Key Features:
+- **Local LLM-based PII detection**: Uses Hugging Face models (Qwen, Mistral, Gemma) running locally
+- **Smart text chunking**: Automatically splits large files into overlapping chunks for LLM processing
+- **Entity memory**: Consistently anonymizes the same entities across files (e.g., "John Doe" → "REDACTED_PERSON1")
+- **Systematic filename anonymization**: Files become FILE_0001.ext, directories become DIR_0001
+- **Complete reversibility**: All anonymization mappings are saved for perfect restoration
+- **Accuracy testing framework**: Built-in test suite to validate PII detection accuracy
+
+#### Detected PII Types:
+- Names (persons)
+- Email addresses
+- Phone numbers
+- Physical addresses
+- Organizations
+- Social Security Numbers (SSN)
+- Credit card numbers
+
+#### Configuration:
+- Edit `config/default.yaml` to change:
+  - LLM model selection (default: Qwen/Qwen3-4B-Instruct-2507)
+  - File types to process
+  - Exclude patterns
+  - Maximum tokens per chunk (for large file handling)
+  - Device selection (cpu/cuda/mps)
 
 ## Configuration
 
@@ -87,8 +110,14 @@ The project uses a YAML-based configuration system. Settings are loaded from:
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
+# Run specific test files
 python -m pytest tests/test_config_loader.py -v
+python -m pytest tests/test_dir_anonymizer.py -v
+python -m pytest tests/test_text_chunker.py -v
+python -m pytest tests/test_llm_backend_chunking.py -v
+
+# Run tests for local anonymizer
+python -m pytest tests/test_local_anonymizer.py -v
 ```
 
 ### Adding New Tools

@@ -123,3 +123,5 @@ anonymizer:
     device: "mps"
     # Optional custom system prompt for PII detection
     system_prompt: null
+    # Maximum tokens per chunk sent to LLM
+    max_input_tokens: 1000

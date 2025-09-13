@@ -153,19 +153,30 @@ class TestLocalAnonymizer:
         assert "123-45-6789" not in anon_text
         assert "555-123-4567" not in anon_text
         
-    def test_counter_reset_between_calls(self, mock_llm_backend):
-        """Test that entity counters reset between anonymize_data calls."""
+    def test_memory_and_reset(self, mock_llm_backend):
+        """Test that anonymizer remembers entities and can be reset."""
         anonymizer = LocalAnonymizer()
         
         # First call
-        text1 = "Email: test1@example.com"
+        text1 = "Email: test@example.com"
         anon_text1, _ = anonymizer.anonymize_data(text1)
         assert "REDACTED_EMAIL1" in anon_text1
         
-        # Second call should also start at 1
-        text2 = "Email: test2@example.com"
+        # Second call with different email should get next number
+        text2 = "Email: other@example.com"
         anon_text2, _ = anonymizer.anonymize_data(text2)
-        assert "REDACTED_EMAIL1" in anon_text2
+        assert "REDACTED_EMAIL2" in anon_text2
+        
+        # Same email as first should get same tag
+        text3 = "Email: test@example.com"
+        anon_text3, _ = anonymizer.anonymize_data(text3)
+        assert "REDACTED_EMAIL1" in anon_text3
+        
+        # After reset, counters should start over
+        anonymizer.reset()
+        text4 = "Email: new@example.com"
+        anon_text4, _ = anonymizer.anonymize_data(text4)
+        assert "REDACTED_EMAIL1" in anon_text4
 
 
 class TestLocalDeanonymizer:

@@ -40,6 +40,10 @@ class DirectoryAnonymizer:
         # Initialize faker for filename anonymization
         self.faker = Faker()
         
+        # Initialize counters for filename anonymization
+        self.file_counter = 0
+        self.dir_counter = 0
+        
         # Initialize local LLM-based anonymizer from config
         self.anonymizer = LocalAnonymizer.create_from_config(self.anon_config)
         LOG.info("Using local LLM anonymizer")
@@ -95,23 +99,27 @@ class DirectoryAnonymizer:
                 return True
         return False
         
-    def anonymize_filename(self, filename: str) -> str:
+    def anonymize_filename(self, filename: str, is_directory: bool = False) -> str:
         """Anonymize a filename while preserving extension.
         
         Args:
             filename: Original filename
+            is_directory: Whether this is a directory name
             
         Returns:
             Anonymized filename
         """
         path = Path(filename)
         ext = ''.join(path.suffixes)  # Preserve all extensions (e.g., .tar.gz)
-        base = path.stem
         
-        # Generate a fake word or use a UUID-like string
-        fake_base = self.faker.word() + '_' + self.faker.numerify('####')
-        
-        return fake_base + ext
+        if is_directory:
+            # For directories, use DIR_N format
+            self.dir_counter += 1
+            return f"DIR_{self.dir_counter:04d}"
+        else:
+            # For files, use FILE_N format with extension preserved
+            self.file_counter += 1
+            return f"FILE_{self.file_counter:04d}{ext}"
         
     def anonymize_file_content(self, file_path: Path) -> Tuple[str, Dict[str, Any]]:
         """Anonymize the content of a single file.
@@ -198,9 +206,9 @@ class DirectoryAnonymizer:
                         anonymized_parts = []
                         for i, part in enumerate(parts):
                             if i == len(parts) - 1:  # Last part is filename
-                                anon_part = self.anonymize_filename(part)
+                                anon_part = self.anonymize_filename(part, is_directory=False)
                             else:  # Directory name
-                                anon_part = self.faker.word()
+                                anon_part = self.anonymize_filename(part, is_directory=True)
                             anonymized_parts.append(anon_part)
                             # Store mapping
                             self.all_mappings['files'][part] = anon_part

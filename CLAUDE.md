@@ -20,8 +20,8 @@ source .venv/bin/activate
 # Install package in editable mode with dependencies
 uv pip install -e .
 
-# Install spaCy model (required for anonymizer tool)
-uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+# For local LLM anonymization with gated models, authenticate with Hugging Face
+huggingface-cli login  # You'll need a token from https://huggingface.co/settings/tokens
 ```
 
 ### Testing
@@ -35,6 +35,10 @@ python -m pytest tests/test_dir_anonymizer.py -v
 
 # Run single test
 python -m pytest tests/test_dir_anonymizer.py::test_custom_config -v
+
+# Run chunking tests
+python -m pytest tests/test_text_chunker.py -v
+python -m pytest tests/test_llm_backend_chunking.py -v
 ```
 
 ### Linting
@@ -62,10 +66,20 @@ The codebase follows a standard Python package layout with `shilads_helpers/` as
 
 ### Directory Anonymizer Tool
 Main tool in `tools/dir_anonymizer/`:
-- **anonymizer.py**: Uses anonLLM to anonymize PII in files, config-driven file type filtering
+- **anonymizer.py**: Main anonymization logic with file/directory processing
 - **deanonymizer.py**: Restores original content using saved mappings
-- **cli.py**: Command-line interface, registered as `anonymize-dir` entry point
-- Handles the problematic address pattern from anonLLM by using a simplified regex
+- **cli.py**: Command-line interface with anonymize, restore, and accuracy commands
+- **accuracy.py**: Accuracy testing framework for PII detection validation
+
+### Local Anonymizer Library
+In `libs/local_anonymizer/`:
+- **anonymizer.py**: LocalAnonymizer class with entity memory and reset functionality
+- **llm_backend.py**: LLM integration with automatic text chunking for large files
+- **regex_backend.py**: Fallback regex patterns for PII detection
+
+### Text Processing Utilities
+In `libs/`:
+- **text_chunker.py**: Generator-based text chunking with token counting and overlap
 
 ### Import Structure
 All imports use absolute imports from `shilads_helpers` package:
@@ -76,10 +90,14 @@ from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 
 ## Key Dependencies
 - **uv**: Fast package manager (replaces pip)
-- **anonLLM**: PII anonymization library
-- **spaCy**: NLP for entity recognition (requires en_core_web_sm model)
+- **transformers**: Hugging Face library for local LLM models
+- **torch**: PyTorch for model inference
+- **huggingface-hub**: For authenticated model access
+- **sentencepiece**: Tokenizer for certain models
+- **protobuf**: Required for some model formats
 - **PyYAML**: Configuration file handling
 - **tqdm**: Progress bars
+- **faker**: Fallback for generating replacement data
 
 ## Adding New Tools
 
@@ -100,3 +118,19 @@ from shilads_helpers.libs.config_loader import load_all_configs, get_config
 config = load_all_configs()  # Loads all YAML files from config/
 value = get_config("anonymizer.file_types", config)  # Dot notation access
 ```
+
+## Important Implementation Notes
+
+### Anonymizer Improvements (Recent Changes)
+1. **Removed anonLLM dependency**: Now uses only local LLM models via Hugging Face transformers
+2. **Entity memory**: LocalAnonymizer remembers entities and reuses tags (John Doe always becomes REDACTED_PERSON1)
+3. **Text chunking**: Automatically handles large files by chunking with overlap
+4. **Filename anonymization**: Uses systematic naming (FILE_0001, DIR_0001) instead of random words
+5. **Accuracy testing**: Standalone CLI command for testing PII detection accuracy
+6. **Required arguments**: `anonymize` command now requires both input and output directories
+
+### Testing Strategy
+- Unit tests use mocks to avoid downloading LLM models
+- Accuracy tests can run against YAML test cases
+- Text chunking has comprehensive test coverage
+- All imports should be absolute from `shilads_helpers` package
