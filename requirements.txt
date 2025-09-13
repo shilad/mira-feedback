@@ -1,0 +1,11 @@
+# Core dependencies
+PyYAML>=6.0
+anonLLM>=0.1.10
+tqdm>=4.60.0
+transformers>=4.36.0
+torch>=2.0.0
+accelerate>=0.25.0
+
+# Testing dependencies
+pytest>=7.0
+pytest-cov>=4.0

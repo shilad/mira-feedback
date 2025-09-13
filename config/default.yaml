@@ -1,0 +1,125 @@
+# Default configuration for shilads-helpers
+
+app:
+  name: shilads-helpers
+  version: 1.0.0
+  author: Shilad Sen
+
+# Logging configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+# Path configurations
+paths:
+  # Add common paths used by your scripts
+  data_dir: ~/data
+  output_dir: ~/output
+
+# Common tool settings
+tools:
+  # Add tool-specific settings as needed
+  max_threads: 4
+  timeout: 300  # seconds
+
+# Directory anonymizer settings
+anonymizer:
+  # File types to process (by extension)
+  file_types:
+    - .py
+    - .txt
+    - .md
+    - .qmd
+    - .rmd
+    - .yaml
+    - .yml
+    - .json
+    - .csv
+    - .log
+    - .sh
+    - .bash
+    - .zsh
+    - .js
+    - .ts
+    - .jsx
+    - .tsx
+    - .html
+    - .css
+    - .xml
+    - .conf
+    - .cfg
+    - .ini
+    - .env
+    - .sql
+    - .r
+    - .R
+    - .ipynb
+    
+  # Patterns to exclude from processing
+  exclude_patterns:
+    - .git
+    - .venv
+    - venv
+    - env
+    - __pycache__
+    - node_modules
+    - .DS_Store
+    - "*.pyc"
+    - "*.pyo"
+    - "*.pyd"
+    - "*.so"
+    - "*.dll"
+    - "*.dylib"
+    - "*.exe"
+    - "*.bin"
+    - "*.zip"
+    - "*.tar"
+    - "*.gz"
+    - "*.rar"
+    - "*.7z"
+    - "*.jpg"
+    - "*.jpeg"
+    - "*.png"
+    - "*.gif"
+    - "*.bmp"
+    - "*.ico"
+    - "*.svg"
+    - "*.pdf"
+    - "*.doc"
+    - "*.docx"
+    - "*.xls"
+    - "*.xlsx"
+    - "*.ppt"
+    - "*.pptx"
+    
+  # Output settings
+  output:
+    # Directory for anonymized output (relative to current dir)
+    output_dir: anonymized_output
+    # Where to save the mapping file
+    mapping_file: anonymization_mapping.json
+    
+  # Anonymization options
+  options:
+    # Whether to anonymize file and directory names
+    anonymize_filenames: true
+    # Whether to preserve directory structure
+    preserve_structure: true
+    # Whether to create a summary report
+    create_report: true
+    
+  # Custom patterns (regex) and their replacements
+  custom_patterns: {}
+  
+  # Local LLM model configuration
+  local_model:
+    # Hugging Face model name
+#    name: "mistralai/Mistral-7B-Instruct-v0.3"
+    name: "Qwen/Qwen3-4B-Instruct-2507"
+#    name: "google/gemma-3-1b-it"
+#    name: "google/gemma-3-270m-it"
+
+    # Device to run on: 'cpu' or 'cuda'
+    device: "mps"
+    # Optional custom system prompt for PII detection
+    system_prompt: null

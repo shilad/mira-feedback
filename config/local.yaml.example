@@ -1,0 +1,22 @@
+# Local configuration overrides (copy to local.yaml and customize)
+# This file should NOT be committed to git
+
+# Example overrides:
+
+# logging:
+#   level: DEBUG
+
+# paths:
+#   data_dir: /custom/path/to/data
+#   output_dir: /custom/path/to/output
+
+# academic:
+#   semester: Spring 2025
+#   courses:
+#     - COMP 221
+#     - DATA 275
+
+# Add API keys and secrets here
+# api_keys:
+#   openai: your-key-here
+#   anthropic: your-key-here

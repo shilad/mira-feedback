@@ -1,0 +1,33 @@
+test_cases:
+  - id: person_single
+    input: "John Smith will attend the meeting"
+    expected:
+      persons: ["John Smith"]
+    category: names
+    description: "Single person name"
+    tags: ["llm_only"]
+    notes: "Requires LLM for name detection"
+
+  - id: person_multiple
+    input: "Alice Johnson and Bob Wilson are collaborating"
+    expected:
+      persons: ["Alice Johnson", "Bob Wilson"]
+    category: names
+    description: "Multiple person names"
+    tags: ["llm_only"]
+
+  - id: org_company
+    input: "Microsoft announced new products"
+    expected:
+      organizations: ["Microsoft"]
+    category: organizations
+    description: "Company name"
+    tags: ["llm_only"]
+
+  - id: org_multiple
+    input: "Google and Amazon are competing"
+    expected:
+      organizations: ["Google", "Amazon"]
+    category: organizations
+    description: "Multiple organizations"
+    tags: ["llm_only"]
