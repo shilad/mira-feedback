@@ -52,6 +52,56 @@ shilads-helpers/
 
 ## Available Tools
 
+### Moodle Submission Preparation Tool
+Prepares Moodle homework submissions for anonymized feedback through a three-stage processing pipeline.
+
+```bash
+# Basic usage
+prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/
+
+# Skip the redaction stage (faster, only anonymizes names)
+prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/ --skip-stage 2_redacted
+
+# Keep original HTML files alongside converted Markdown
+prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/ --keep-html
+
+# Dry run to see what would be done
+prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/ --dry-run
+
+# Check existing stage directories
+prep-moodle --workdir ./output/ --info
+```
+
+#### Processing Stages:
+1. **0_submitted**: Extracts the Moodle zip file and copies the grading CSV
+2. **1_prep**: Anonymizes student names/directories, converts HTML to Markdown, stores all mapping files
+3. **2_redacted**: Runs full PII redaction for completely clean output (ready for distribution)
+
+#### Key Features:
+- **Student anonymization**: Replaces names with Student_001, Student_002, etc.
+- **HTML to Markdown conversion**: Automatically converts HTML submissions to readable Markdown
+- **Mapping preservation**: Keeps name mappings in 1_prep for de-anonymization
+- **Clean output**: 2_redacted directory contains only anonymized content with no mapping files
+- **Flexible processing**: Skip stages as needed for faster processing
+
+#### Output Structure:
+```
+working_dir/
+├── 0_submitted/           # Original extracted files
+│   ├── grades.csv
+│   └── [student submissions]/
+├── 1_prep/               # Anonymized names, converted HTML, ALL mapping files
+│   ├── grades_anonymized.csv
+│   ├── name_mapping.json
+│   ├── anonymization_map.json
+│   └── Student_001_submission/
+│       └── assignment.md
+└── 2_redacted/          # Clean, fully anonymized output
+    ├── grades_anonymized.csv
+    └── Student_001_submission/
+        └── assignment.md
+```
+
 ### Directory Anonymizer
 Anonymizes personally identifiable information (PII) in directories using a local LLM while preserving structure. Useful for sharing code/data samples without exposing sensitive information.
 
@@ -115,6 +165,7 @@ python -m pytest tests/test_config_loader.py -v
 python -m pytest tests/test_dir_anonymizer.py -v
 python -m pytest tests/test_text_chunker.py -v
 python -m pytest tests/test_llm_backend_chunking.py -v
+python -m pytest tests/test_moodle_prep.py -v
 
 # Run tests for local anonymizer
 python -m pytest tests/test_local_anonymizer.py -v
