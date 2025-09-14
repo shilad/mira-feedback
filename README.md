@@ -81,11 +81,12 @@ prep-moodle --workdir ./output/ --info
 - **Automatic moodle_grades.csv generation**: Creates grading spreadsheet from submission directory structure
 - **Online text handling**: Captures online text submissions in moodle_grades.csv without copying directories
 - **Smart CSV anonymization**: moodle_grades.csv uses column-based redaction (Full name, Email address)
-- **HTML to Markdown conversion**: Automatically converts HTML submissions to readable Markdown
-- **PII redaction**: Removes personally identifiable information from file contents
+- **HTML to Markdown conversion**: Automatically converts HTML submissions to readable Markdown using html-to-markdown
+- **LLM-based PII redaction**: Uses local LLM models to detect and redact PII in both content and filenames
+- **Feedback preservation**: Keeps assignfeedback directories and content untouched
 - **Clean output**: 2_redacted directory contains only anonymized content
 - **Flexible processing**: Skip stages as needed for faster processing
-- **Preserves structure**: Maintains original directory and file names
+- **Preserves structure**: Maintains Moodle directory naming (Student_ID_type) while redacting names
 
 #### Output Structure:
 ```
@@ -98,7 +99,7 @@ working_dir/
 │       └── assignment.md
 └── 2_redacted/          # Clean, PII-redacted output
     ├── moodle_grades.csv # Anonymized (REDACTED_PERSON1, etc.)
-    └── [file submissions]/
+    └── [REDACTED_PERSON1_ID_type]/  # LLM-redacted filenames
         └── assignment.md
 ```
 
@@ -126,9 +127,10 @@ anonymize-dir accuracy -t /path/to/test/yaml/files
 - **Local LLM-based PII detection**: Uses Hugging Face models (Qwen, Mistral, Gemma) running locally
 - **Smart text chunking**: Automatically splits large files into overlapping chunks for LLM processing
 - **Entity memory**: Consistently anonymizes the same entities across files (e.g., "John Doe" → "REDACTED_PERSON1")
-- **Systematic filename anonymization**: Files become FILE_0001.ext, directories become DIR_0001
+- **LLM-based filename anonymization**: Uses LLM to detect and redact PII in filenames intelligently
 - **Complete reversibility**: All anonymization mappings are saved for perfect restoration
 - **Accuracy testing framework**: Built-in test suite to validate PII detection accuracy
+- **Moodle integration**: Special handling for moodle_grades.csv with column-based anonymization
 
 #### Detected PII Types:
 - Names (persons)
@@ -166,6 +168,7 @@ python -m pytest tests/test_dir_anonymizer.py -v
 python -m pytest tests/test_text_chunker.py -v
 python -m pytest tests/test_llm_backend_chunking.py -v
 python -m pytest tests/test_moodle_prep.py -v
+python -m pytest tests/test_moodle_integration.py -v
 
 # Run tests for local anonymizer
 python -m pytest tests/test_local_anonymizer.py -v

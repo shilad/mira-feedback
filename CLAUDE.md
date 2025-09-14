@@ -29,9 +29,11 @@ huggingface-cli login  # You'll need a token from https://huggingface.co/setting
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
+# Run specific test files
 python -m pytest tests/test_config_loader.py -v
 python -m pytest tests/test_dir_anonymizer.py -v
+python -m pytest tests/test_moodle_prep.py -v
+python -m pytest tests/test_moodle_integration.py -v
 
 # Run single test
 python -m pytest tests/test_dir_anonymizer.py::test_custom_config -v
@@ -53,8 +55,8 @@ ruff format shilads_helpers/
 
 ### Package Structure
 The codebase follows a standard Python package layout with `shilads_helpers/` as the main package:
-- **libs/**: Shared libraries (config_loader)
-- **tools/**: Multi-file tools (dir_anonymizer)
+- **libs/**: Shared libraries (config_loader, local_anonymizer, text_chunker)
+- **tools/**: Multi-file tools (dir_anonymizer, moodle_prep)
 - **scripts/**: Single-file utilities (currently empty, ready for simple scripts)
 
 ### Configuration System
