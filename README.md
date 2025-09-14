@@ -56,49 +56,49 @@ shilads-helpers/
 Prepares Moodle homework submissions for anonymized feedback through a three-stage processing pipeline.
 
 ```bash
-# Basic usage
-prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/
+# Basic usage (grades.csv is automatically generated from submissions)
+prep-moodle --zip submissions.zip --workdir ./output/
 
-# Skip the redaction stage (faster, only anonymizes names)
-prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/ --skip-stage 2_redacted
+# Skip the redaction stage (faster processing)
+prep-moodle --zip submissions.zip --workdir ./output/ --skip-stage 2_redacted
 
 # Keep original HTML files alongside converted Markdown
-prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/ --keep-html
+prep-moodle --zip submissions.zip --workdir ./output/ --keep-html
 
 # Dry run to see what would be done
-prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/ --dry-run
+prep-moodle --zip submissions.zip --workdir ./output/ --dry-run
 
 # Check existing stage directories
 prep-moodle --workdir ./output/ --info
 ```
 
 #### Processing Stages:
-1. **0_submitted**: Extracts the Moodle zip file and copies the grading CSV
-2. **1_prep**: Anonymizes student names/directories, converts HTML to Markdown, stores all mapping files
-3. **2_redacted**: Runs full PII redaction for completely clean output (ready for distribution)
+1. **0_submitted**: Extracts file submissions only (online text directories removed)
+2. **1_prep**: Generates moodle_grades.csv with all students + converts HTML to Markdown
+3. **2_redacted**: Runs full PII redaction for clean output (ready for distribution)
 
 #### Key Features:
-- **Student anonymization**: Replaces names with Student_001, Student_002, etc.
+- **Automatic moodle_grades.csv generation**: Creates grading spreadsheet from submission directory structure
+- **Online text handling**: Captures online text submissions in moodle_grades.csv without copying directories
+- **Smart CSV anonymization**: moodle_grades.csv uses column-based redaction (Full name, Email address)
 - **HTML to Markdown conversion**: Automatically converts HTML submissions to readable Markdown
-- **Mapping preservation**: Keeps name mappings in 1_prep for de-anonymization
-- **Clean output**: 2_redacted directory contains only anonymized content with no mapping files
+- **PII redaction**: Removes personally identifiable information from file contents
+- **Clean output**: 2_redacted directory contains only anonymized content
 - **Flexible processing**: Skip stages as needed for faster processing
+- **Preserves structure**: Maintains original directory and file names
 
 #### Output Structure:
 ```
 working_dir/
-├── 0_submitted/           # Original extracted files
-│   ├── grades.csv
-│   └── [student submissions]/
-├── 1_prep/               # Anonymized names, converted HTML, ALL mapping files
-│   ├── grades_anonymized.csv
-│   ├── name_mapping.json
-│   ├── anonymization_map.json
-│   └── Student_001_submission/
+├── 0_submitted/           # File submissions only (no onlinetext dirs)
+│   └── [file submissions]/
+├── 1_prep/               # HTML converted to Markdown + grades
+│   ├── moodle_grades.csv # Generated with all students + online text content
+│   └── [file submissions]/
 │       └── assignment.md
-└── 2_redacted/          # Clean, fully anonymized output
-    ├── grades_anonymized.csv
-    └── Student_001_submission/
+└── 2_redacted/          # Clean, PII-redacted output
+    ├── moodle_grades.csv # Anonymized (REDACTED_PERSON1, etc.)
+    └── [file submissions]/
         └── assignment.md
 ```
 

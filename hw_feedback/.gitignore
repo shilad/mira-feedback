@@ -1,0 +1,3 @@
+# Ignore everything in hw_feedback except this .gitignore file
+*
+!.gitignore

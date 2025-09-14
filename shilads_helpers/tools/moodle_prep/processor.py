@@ -1,6 +1,5 @@
 """Core processor for Moodle submission preparation."""
 
-import json
 import logging
 import shutil
 import zipfile
@@ -9,9 +8,10 @@ from typing import Dict, List, Optional, Set
 
 from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 from shilads_helpers.tools.moodle_prep.utils import (
-    anonymize_csv,
-    anonymize_directory_names,
-    process_html_files
+    process_html_files,
+    generate_grades_csv_from_data,
+    parse_moodle_dirname,
+    convert_html_to_markdown
 )
 
 LOG = logging.getLogger(__name__)
@@ -39,24 +39,23 @@ class MoodleProcessor:
             '2_redacted': self.working_dir / '2_redacted'
         }
         
+        # Store submission data for moodle_grades.csv generation
+        self.all_submissions_data = []
+        
         # Tracking for processing
-        self.name_mapping = {}
-        self.dir_mapping = {}
         self.stats = {
             'files_extracted': 0,
             'files_converted': 0,
-            'students_anonymized': 0,
             'files_redacted': 0,
             'errors': []
         }
     
-    def process(self, zip_path: Path, grades_path: Path, 
+    def process(self, zip_path: Path, 
                 skip_stages: Optional[Set[str]] = None) -> Dict:
         """Process Moodle submissions through all stages.
         
         Args:
             zip_path: Path to submissions zip file
-            grades_path: Path to grading CSV file
             skip_stages: Set of stage names to skip
             
         Returns:
@@ -64,14 +63,17 @@ class MoodleProcessor:
         """
         skip_stages = skip_stages or set()
         
-        # Create working directory if needed
+        # Clear existing working directory if it exists and we're running stage 1
         if not self.dry_run:
+            if '0_submitted' not in skip_stages and self.working_dir.exists():
+                LOG.info(f"Clearing existing working directory: {self.working_dir}")
+                shutil.rmtree(self.working_dir)
             self.working_dir.mkdir(parents=True, exist_ok=True)
         
         # Stage 1: Extract and organize
         if '0_submitted' not in skip_stages:
             LOG.info("Stage 1: Extracting submissions...")
-            self._stage1_extract(zip_path, grades_path)
+            self._stage1_extract(zip_path)
         else:
             LOG.info("Skipping Stage 1: 0_submitted")
         
@@ -91,36 +93,79 @@ class MoodleProcessor:
         
         return {
             'stats': self.stats,
-            'name_mapping': self.name_mapping,
-            'dir_mapping': self.dir_mapping,
             'stage_dirs': {k: str(v) for k, v in self.stage_dirs.items()}
         }
     
-    def _stage1_extract(self, zip_path: Path, grades_path: Path):
-        """Stage 1: Extract zip and copy grades."""
+    def _stage1_extract(self, zip_path: Path):
+        """Stage 1: Extract zip to stage 0.
+        
+        Online text submissions are NOT copied to stage 0 but their data is preserved.
+        """
         stage_dir = self.stage_dirs['0_submitted']
         
         if not self.dry_run:
             stage_dir.mkdir(parents=True, exist_ok=True)
             
-            # Extract zip file
             LOG.info(f"Extracting {zip_path}...")
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                # Extract everything to stage 0 first
                 zip_ref.extractall(stage_dir)
                 self.stats['files_extracted'] = len(zip_ref.namelist())
             
-            # Copy grades CSV
-            grades_dest = stage_dir / 'grades.csv'
-            shutil.copy2(grades_path, grades_dest)
-            LOG.info(f"Copied grades to {grades_dest}")
+            # Collect submission data and remove onlinetext directories
+            self.all_submissions_data = []
+            removed_count = 0
+            
+            for item in list(stage_dir.iterdir()):
+                if item.is_dir():
+                    student_name, student_id, submission_type = parse_moodle_dirname(item.name)
+                    
+                    if student_name and student_id:
+                        # Create submission record
+                        submission_record = {
+                            "name": student_name,
+                            "id": student_id,
+                            "type": submission_type,
+                            "online_text": ""
+                        }
+                        
+                        # If online text, capture content before removing
+                        if submission_type == "onlinetext":
+                            # Look for onlinetext files
+                            for ext in ['.html', '.md', '.txt']:
+                                text_file = item / f"onlinetext{ext}"
+                                if text_file.exists():
+                                    try:
+                                        content = text_file.read_text(encoding='utf-8', errors='ignore')
+                                        # Convert HTML to Markdown if it's an HTML file
+                                        if ext == '.html':
+                                            content = convert_html_to_markdown(content)
+                                        # Store up to 1000 characters of the markdown content
+                                        submission_record["online_text"] = content[:1000] if len(content) > 1000 else content
+                                        break
+                                    except Exception as e:
+                                        LOG.warning(f"Could not read online text from {text_file}: {e}")
+                            
+                            # Remove the directory
+                            shutil.rmtree(item)
+                            removed_count += 1
+                            LOG.debug(f"Removed onlinetext submission: {item.name}")
+                        
+                        self.all_submissions_data.append(submission_record)
+            
+            LOG.info(f"Kept {len(list(stage_dir.iterdir()))} file submissions in stage 0")
+            LOG.info(f"Collected data for {len(self.all_submissions_data)} total submissions")
+            if removed_count > 0:
+                LOG.info(f"Removed {removed_count} online text directories (content preserved for moodle_grades.csv)")
+            
         else:
-            LOG.info("[DRY RUN] Would extract zip and copy grades")
+            LOG.info("[DRY RUN] Would extract zip to stage 0")
             # Count files in zip for stats
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 self.stats['files_extracted'] = len(zip_ref.namelist())
     
     def _stage2_prepare(self):
-        """Stage 2: Anonymize names and convert HTML."""
+        """Stage 2: Generate moodle_grades.csv and convert HTML to Markdown."""
         source_dir = self.stage_dirs['0_submitted']
         stage_dir = self.stage_dirs['1_prep']
         
@@ -134,51 +179,16 @@ class MoodleProcessor:
                 shutil.rmtree(stage_dir)
             shutil.copytree(source_dir, stage_dir)
             
-            # Anonymize grades CSV
-            grades_src = stage_dir / 'grades.csv'
-            grades_dest = stage_dir / 'grades_anonymized.csv'
-            
-            if grades_src.exists():
-                self.name_mapping = anonymize_csv(grades_src, grades_dest)
-                self.stats['students_anonymized'] = len(self.name_mapping)
-                
-                # Save name mapping
-                mapping_file = stage_dir / 'name_mapping.json'
-                with open(mapping_file, 'w') as f:
-                    json.dump(self.name_mapping, f, indent=2)
-                LOG.info(f"Saved name mapping to {mapping_file}")
-                
-                # Remove original grades file
-                grades_src.unlink()
-            
-            # Get directory mapping
-            self.dir_mapping = anonymize_directory_names(stage_dir, self.name_mapping)
-            
-            # Rename directories
-            for old_name, new_name in self.dir_mapping.items():
-                old_path = stage_dir / old_name
-                new_path = stage_dir / new_name
-                if old_path.exists() and old_name != new_name:
-                    old_path.rename(new_path)
-                    LOG.debug(f"Renamed {old_name} to {new_name}")
+            # Generate moodle_grades.csv from collected submission data
+            grades_dest = stage_dir / 'moodle_grades.csv'
+            grades_stats = generate_grades_csv_from_data(self.all_submissions_data, grades_dest)
+            LOG.info(f"Generated moodle_grades.csv with {grades_stats['total_students']} students")
             
             # Convert HTML files to Markdown
             self.stats['files_converted'] = process_html_files(stage_dir, self.keep_html)
             
         else:
-            LOG.info("[DRY RUN] Would anonymize names and convert HTML files")
-            # Simulate anonymization for dry run
-            grades_src = source_dir / 'grades.csv'
-            if grades_src.exists():
-                # Count students in CSV
-                import csv
-                with open(grades_src, 'r', encoding='utf-8-sig') as f:
-                    reader = csv.DictReader(f)
-                    names = set()
-                    for row in reader:
-                        if row.get("Full name"):
-                            names.add(row["Full name"])
-                    self.stats['students_anonymized'] = len(names)
+            LOG.info("[DRY RUN] Would generate moodle_grades.csv and convert HTML files to Markdown")
     
     def _stage3_redact(self):
         """Stage 3: Redact PII content using DirectoryAnonymizer."""
@@ -192,21 +202,14 @@ class MoodleProcessor:
         if not self.dry_run:
             # Use DirectoryAnonymizer to redact PII
             LOG.info("Running PII redaction...")
-            anonymizer = DirectoryAnonymizer(anonymize_filenames=False)  # Names already anonymized
+            anonymizer = DirectoryAnonymizer(anonymize_filenames=True)  # Anonymize filenames for full privacy
             
             # Run anonymization
             results = anonymizer.process_directory(
-                input_dir=source_dir,
-                output_dir=stage_dir,
+                input_dir=str(source_dir),
+                output_dir=str(stage_dir),
                 dry_run=False
             )
-            
-            # Save anonymization map to prep directory (not redacted)
-            if 'anonymization_map' in results:
-                map_file = self.stage_dirs['1_prep'] / 'anonymization_map.json'
-                with open(map_file, 'w') as f:
-                    json.dump(results['anonymization_map'], f, indent=2)
-                LOG.info(f"Saved anonymization map to {map_file}")
             
             # Update stats
             if 'statistics' in results:

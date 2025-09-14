@@ -11,9 +11,7 @@ import pytest
 
 from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
 from shilads_helpers.tools.moodle_prep.utils import (
-    anonymize_csv,
     parse_moodle_dirname,
-    anonymize_directory_names,
     convert_html_to_markdown
 )
 
@@ -41,71 +39,6 @@ class TestMoodleUtils:
         assert id == ""
         assert type == ""
     
-    def test_anonymize_csv(self, tmp_path):
-        """Test CSV anonymization."""
-        # Create test CSV
-        csv_path = tmp_path / "test_grades.csv"
-        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=["Identifier", "Full name", "Email address", "Grade"])
-            writer.writeheader()
-            writer.writerows([
-                {"Identifier": "001", "Full name": "John Doe", "Email address": "john@example.com", "Grade": "85"},
-                {"Identifier": "002", "Full name": "Jane Smith", "Email address": "jane@example.com", "Grade": "92"},
-                {"Identifier": "003", "Full name": "Bob Johnson", "Email address": "bob@example.com", "Grade": "78"},
-            ])
-        
-        # Anonymize
-        output_path = tmp_path / "anonymized.csv"
-        name_mapping = anonymize_csv(csv_path, output_path)
-        
-        # Check mapping
-        assert len(name_mapping) == 3
-        assert "John Doe" in name_mapping
-        assert "Jane Smith" in name_mapping
-        assert "Bob Johnson" in name_mapping
-        assert name_mapping["John Doe"] == "Student_001"
-        assert name_mapping["Jane Smith"] == "Student_002"
-        assert name_mapping["Bob Johnson"] == "Student_003"
-        
-        # Check output CSV
-        with open(output_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-            
-            # Email should be removed
-            assert "Email address" not in reader.fieldnames
-            
-            # Names should be anonymized
-            assert rows[0]["Full name"] == "Student_001"
-            assert rows[1]["Full name"] == "Student_002"
-            assert rows[2]["Full name"] == "Student_003"
-            
-            # Grades should be preserved
-            assert rows[0]["Grade"] == "85"
-            assert rows[1]["Grade"] == "92"
-            assert rows[2]["Grade"] == "78"
-    
-    def test_anonymize_directory_names(self, tmp_path):
-        """Test directory name anonymization."""
-        # Create test directories
-        (tmp_path / "John Doe_12345_assignsubmission_file").mkdir()
-        (tmp_path / "Jane Smith_67890_assignsubmission_onlinetext").mkdir()
-        (tmp_path / "Bob Johnson_11111_assignsubmission_file").mkdir()
-        
-        # Create name mapping
-        name_mapping = {
-            "John Doe": "Student_001",
-            "Jane Smith": "Student_002",
-            "Bob Johnson": "Student_003"
-        }
-        
-        # Get directory mapping
-        dir_mapping = anonymize_directory_names(tmp_path, name_mapping)
-        
-        # Check mappings
-        assert dir_mapping["John Doe_12345_assignsubmission_file"] == "Student_001_12345_assignsubmission_file"
-        assert dir_mapping["Jane Smith_67890_assignsubmission_onlinetext"] == "Student_002_67890_assignsubmission_onlinetext"
-        assert dir_mapping["Bob Johnson_11111_assignsubmission_file"] == "Student_003_11111_assignsubmission_file"
     
     def test_convert_html_to_markdown(self):
         """Test HTML to Markdown conversion with html-to-markdown."""
@@ -151,55 +84,52 @@ class TestMoodleProcessor:
         """Test dry run mode doesn't create files."""
         # Create test files
         zip_path = tmp_path / "test.zip"
-        grades_path = tmp_path / "grades.csv"
         work_dir = tmp_path / "work"
         
-        # Create minimal test zip
+        # Create minimal test zip with Moodle directory structure
         with zipfile.ZipFile(zip_path, 'w') as zf:
-            zf.writestr("test_file.txt", "test content")
-        
-        # Create minimal grades CSV
-        with open(grades_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=["Full name", "Grade"])
-            writer.writeheader()
-            writer.writerow({"Full name": "Test Student", "Grade": "100"})
+            zf.writestr("John Doe_12345_assignsubmission_file/test.txt", "test content")
+            zf.writestr("Jane Smith_67890_assignsubmission_onlinetext/onlinetext.html", "<p>Online submission</p>")
         
         # Run processor in dry run mode
         processor = MoodleProcessor(work_dir, dry_run=True)
         
         # Mock the DirectoryAnonymizer to avoid dependency issues
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
-            results = processor.process(zip_path, grades_path)
+            results = processor.process(zip_path)
         
         # Check that no directories were created
         assert not work_dir.exists()
-        assert results['stats']['files_extracted'] == 1
+        assert results['stats']['files_extracted'] == 2
     
     def test_skip_stages(self, tmp_path):
         """Test skipping stages."""
         # Create test files
         zip_path = tmp_path / "test.zip"
-        grades_path = tmp_path / "grades.csv"
         work_dir = tmp_path / "work"
         
-        # Create minimal test files
+        # Create minimal test files with Moodle structure
         with zipfile.ZipFile(zip_path, 'w') as zf:
-            zf.writestr("test_file.txt", "test content")
-        grades_path.write_text("Full name,Grade\nTest,100\n")
+            zf.writestr("John Doe_12345_assignsubmission_file/test.txt", "test content")
         
         # Create processor
         processor = MoodleProcessor(work_dir)
         
-        # Create stage 1 directory manually
-        stage1_dir = work_dir / '0_submitted'
-        stage1_dir.mkdir(parents=True)
-        (stage1_dir / 'grades.csv').write_text("Full name,Grade\nTest,100\n")
+        # Create stage 0 directory manually to test skipping
+        stage0_dir = work_dir / '0_submitted'
+        stage0_dir.mkdir(parents=True)
+        (stage0_dir / 'John Doe_12345_assignsubmission_file').mkdir(parents=True)
+        (stage0_dir / 'John Doe_12345_assignsubmission_file' / 'test.txt').write_text("test content")
         
-        # Skip stage 1, only run stage 2
+        # Populate processor's submission data for stage 1
+        processor.all_submissions_data = [
+            {"name": "John Doe", "id": "12345", "type": "file", "online_text": ""}
+        ]
+        
+        # Skip stage 0 and 2, only run stage 1
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(
-                zip_path, 
-                grades_path,
+                zip_path,
                 skip_stages={'0_submitted', '2_redacted'}
             )
         

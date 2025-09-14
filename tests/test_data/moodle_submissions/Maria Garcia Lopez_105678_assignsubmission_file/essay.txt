@@ -1,0 +1,15 @@
+Computer Networks Essay
+By: Maria Garcia Lopez
+Email: maria.garcia.lopez@university.edu
+
+This essay explores the fundamentals of TCP/IP networking protocols.
+
+The TCP/IP model consists of four layers:
+1. Application Layer
+2. Transport Layer  
+3. Internet Layer
+4. Network Access Layer
+
+Each layer has specific responsibilities in ensuring reliable data transmission.
+
+For any questions about this essay, please contact Maria Garcia Lopez at maria.garcia.lopez@university.edu.

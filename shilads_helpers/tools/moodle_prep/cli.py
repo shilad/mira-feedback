@@ -22,17 +22,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Stages:
-  0_submitted  - Original extracted files and grades
-  1_prep       - Anonymized names, converted HTML, mapping files
-  2_redacted   - Fully anonymized content (clean output)
+  0_submitted  - Extracted file submissions only (online text removed)
+  1_prep       - Generated moodle_grades.csv + HTML converted to Markdown
+  2_redacted   - PII redacted content (clean output)
   
 Example:
-  prep-moodle --zip submissions.zip --grades grades.csv --workdir ./output/
+  prep-moodle --zip submissions.zip --workdir ./output/
   
   This will create:
-    ./output/0_submitted/  - Original files
-    ./output/1_prep/       - Prepared files with mappings
-    ./output/2_redacted/   - Clean anonymized output
+    ./output/0_submitted/  - File submissions only (no online text)
+    ./output/1_prep/       - moodle_grades.csv + HTML converted to Markdown
+    ./output/2_redacted/   - Clean anonymized output with PII redacted
         """
     )
     
@@ -42,12 +42,6 @@ Example:
         type=Path,
         required=True,
         help='Path to Moodle submissions zip file'
-    )
-    parser.add_argument(
-        '--grades', '-g',
-        type=Path,
-        required=True,
-        help='Path to Moodle grading CSV file'
     )
     parser.add_argument(
         '--workdir', '-w',
@@ -95,10 +89,6 @@ Example:
         if not args.zip.exists():
             LOG.error(f"Zip file not found: {args.zip}")
             sys.exit(1)
-        
-        if not args.grades.exists():
-            LOG.error(f"Grades file not found: {args.grades}")
-            sys.exit(1)
     
     # Create processor
     processor = MoodleProcessor(
@@ -130,7 +120,6 @@ Example:
         
         LOG.info(f"Processing Moodle submissions...")
         LOG.info(f"  Zip: {args.zip}")
-        LOG.info(f"  Grades: {args.grades}")
         LOG.info(f"  Working dir: {args.workdir}")
         
         if skip_stages:
@@ -139,7 +128,6 @@ Example:
         # Run processing
         results = processor.process(
             zip_path=args.zip,
-            grades_path=args.grades,
             skip_stages=skip_stages
         )
         
@@ -151,7 +139,6 @@ Example:
         stats = results['stats']
         print(f"\nStatistics:")
         print(f"  Files extracted: {stats['files_extracted']}")
-        print(f"  Students anonymized: {stats['students_anonymized']}")
         print(f"  HTML files converted: {stats['files_converted']}")
         print(f"  Files redacted: {stats['files_redacted']}")
         

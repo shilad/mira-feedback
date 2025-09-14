@@ -12,7 +12,6 @@ from tqdm import tqdm
 
 from shilads_helpers.libs.config_loader import load_all_configs, get_config
 from shilads_helpers.libs.local_anonymizer import LocalAnonymizer
-from faker import Faker
 
 logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
@@ -37,16 +36,12 @@ class DirectoryAnonymizer:
                 self.anon_config['options'] = {}
             self.anon_config['options']['anonymize_filenames'] = anonymize_filenames
         
-        # Initialize faker for filename anonymization
-        self.faker = Faker()
-        
-        # Initialize counters for filename anonymization
-        self.file_counter = 0
-        self.dir_counter = 0
-        
         # Initialize local LLM-based anonymizer from config
         self.anonymizer = LocalAnonymizer.create_from_config(self.anon_config)
         LOG.info("Using local LLM anonymizer")
+        
+        # Initialize Moodle grades handler lazily to avoid circular import
+        self.moodle_grades_handler = None
         
         # Track all mappings
         self.all_mappings = {
@@ -100,26 +95,47 @@ class DirectoryAnonymizer:
         return False
         
     def anonymize_filename(self, filename: str, is_directory: bool = False) -> str:
-        """Anonymize a filename while preserving extension.
+        """Anonymize a filename using LLM to detect and redact PII.
+        
+        Uses the LLM to intelligently detect PII in filenames and redact only
+        the sensitive parts while preserving structure and extensions.
         
         Args:
             filename: Original filename
-            is_directory: Whether this is a directory name
+            is_directory: Whether this is a directory name (unused but kept for compatibility)
             
         Returns:
-            Anonymized filename
+            Anonymized filename with PII replaced by standard redaction tokens
         """
-        path = Path(filename)
-        ext = ''.join(path.suffixes)  # Preserve all extensions (e.g., .tar.gz)
+        # Special case: Never redact moodle_grades.csv
+        if filename == 'moodle_grades.csv':
+            return filename
         
-        if is_directory:
-            # For directories, use DIR_N format
-            self.dir_counter += 1
-            return f"DIR_{self.dir_counter:04d}"
+        # For all other files, use LLM to detect and redact PII
+        # This handles all patterns including Moodle submission directories naturally
+        path = Path(filename)
+        
+        # Separate the extension from the base name for files
+        if not is_directory and path.suffix:
+            # Get all extensions (handles cases like .tar.gz)
+            ext = ''.join(path.suffixes)
+            base_name = str(path).replace(ext, '')
         else:
-            # For files, use FILE_N format with extension preserved
-            self.file_counter += 1
-            return f"FILE_{self.file_counter:04d}{ext}"
+            ext = ''
+            base_name = filename
+        
+        # Use the LLM to anonymize the base name
+        # The LLM will detect names, emails, phones, etc. and replace with standard tokens
+        anonymized_base, _ = self.anonymizer.anonymize_data(base_name)
+        
+        # Clean up any extra whitespace or newlines from LLM output
+        anonymized_base = anonymized_base.strip()
+        
+        # Reconstruct the filename with the preserved extension
+        if ext:
+            return f"{anonymized_base}{ext}"
+        else:
+            return anonymized_base
         
     def anonymize_file_content(self, file_path: Path) -> Tuple[str, Dict[str, Any]]:
         """Anonymize the content of a single file.
@@ -131,6 +147,16 @@ class DirectoryAnonymizer:
             Tuple of (anonymized content, mappings)
         """
         try:
+            # Special handling for moodle_grades.csv
+            if file_path.name == 'moodle_grades.csv':
+                # Lazy import to avoid circular dependency
+                if self.moodle_grades_handler is None:
+                    from shilads_helpers.tools.moodle_prep.moodle_grades_handler import MoodleGradesHandler
+                    self.moodle_grades_handler = MoodleGradesHandler()
+                LOG.info(f"Using specialized handler for {file_path.name}")
+                return self.moodle_grades_handler.anonymize_moodle_grades(file_path)
+            
+            # Default LLM-based anonymization for other files
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
                 
@@ -205,10 +231,13 @@ class DirectoryAnonymizer:
                         parts = list(rel_path.parts)
                         anonymized_parts = []
                         for i, part in enumerate(parts):
-                            if i == len(parts) - 1:  # Last part is filename
-                                anon_part = self.anonymize_filename(part, is_directory=False)
-                            else:  # Directory name
-                                anon_part = self.anonymize_filename(part, is_directory=True)
+                            # Check if this is a file or directory
+                            is_last = (i == len(parts) - 1)
+                            is_dir = not is_last  # All parts except last are directories
+                            
+                            # For directories, first check if it matches Moodle pattern
+                            # The Moodle check is done inside anonymize_filename
+                            anon_part = self.anonymize_filename(part, is_directory=is_dir)
                             anonymized_parts.append(anon_part)
                             # Store mapping
                             self.all_mappings['files'][part] = anon_part
@@ -245,8 +274,9 @@ class DirectoryAnonymizer:
                     
                 pbar.update(1)
                 
-        # Save mapping file
-        mapping_file = Path(self.anon_config['output']['mapping_file'])
+        # Save mapping file to output directory
+        mapping_filename = Path(self.anon_config['output']['mapping_file']).name
+        mapping_file = output_path / mapping_filename
         with open(mapping_file, 'w') as f:
             json.dump(self.all_mappings, f, indent=2)
             
