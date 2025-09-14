@@ -40,6 +40,10 @@ class LLMBackend:
         except Exception as e:
             LOG.error(f"Failed to load model {model_name}: {e}")
             raise
+
+    def num_tokens(self, text: str) -> int:
+        """Count the number of tokens in the given text."""
+        return len(self.tokenizer.encode(text, add_special_tokens=False))
     
     def detect_pii(self, text: str, system_prompt: Optional[str] = None) -> Dict[str, List[str]]:
         """Detect PII in text using the LLM.
@@ -67,7 +71,7 @@ class LLMBackend:
                 # Use the text_chunker utility
                 chunk_generator = chunk_text(
                     text, 
-                    lambda t: len(self.tokenizer.encode(t, add_special_tokens=False)),
+                    lambda t: self.num_tokens(t),
                     self.max_input_tokens,
                     self.lookback_words
                 )
@@ -88,15 +92,7 @@ class LLMBackend:
         except Exception as e:
             LOG.error(f"Error detecting PII: {e}")
             # Return empty structure on error
-            return {
-                "persons": [],
-                "emails": [],
-                "phones": [],
-                "addresses": [],
-                "organizations": [],
-                "credit_cards": [],
-                "ssn": []
-            }
+            return {}
     
     def _detect_pii_single_chunk(self, text: str, system_prompt: str) -> Dict[str, List[str]]:
         """Detect PII in a single chunk of text.
@@ -108,13 +104,12 @@ class LLMBackend:
         Returns:
             Dictionary with PII categories and detected entities
         """
+        if self.num_tokens(text) > 5 * self.max_input_tokens:
+            LOG.warning("Skipping overly long chunk of size > 5x max_input_tokens %d", self.num_tokens(text))
+            return {}
+
         # Construct the full prompt
-        user_prompt = f"""Detect PII for the following content:
-        
-        <content>        
-        {text}
-        </content>
-        """
+        user_prompt = f"""Detect PII for the following content:\n\n<content>\n{text}\n</content>\n"""
 
         messages = [
             {"role": "system", "content": system_prompt},

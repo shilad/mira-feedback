@@ -17,6 +17,8 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "protobuf>=6.0.0",
     "faker>=20.0.0",
+    "html-to-markdown>=1.0.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +29,7 @@ dev = [
 
 [project.scripts]
 anonymize-dir = "shilads_helpers.tools.dir_anonymizer.cli:main"
+prep-moodle = "shilads_helpers.tools.moodle_prep.cli:main"
 
 [build-system]
 requires = ["hatchling"]

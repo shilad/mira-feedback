@@ -43,7 +43,6 @@ anonymizer:
     - .ts
     - .jsx
     - .tsx
-    - .html
     - .css
     - .xml
     - .conf
