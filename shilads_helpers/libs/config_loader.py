@@ -107,12 +107,15 @@ def load_all_configs() -> dict[str, Any]:
     return load_configs(*yaml_files)
 
 
-def get_config(key: str, config: dict[str, Any] = None) -> Any:
+NO_ARG = object()
+
+def get_config(key: str, config: dict[str, Any] = None, default=NO_ARG) -> Any:
     """Get a configuration value by dot-separated key.
     
     Args:
         key: Dot-separated path to config value (e.g., "app.logging.level")
         config: Configuration dict (if None, loads default configs)
+        default: Default value if key not found (if None, raises KeyError)
         
     Returns:
         Configuration value
@@ -129,6 +132,9 @@ def get_config(key: str, config: dict[str, Any] = None) -> Any:
         if not isinstance(value, dict):
             raise KeyError(f"Cannot access {k} in non-dict value at {'.'.join(keys[:keys.index(k)])}")
         if k not in value:
-            raise KeyError(f"Key {key} not found in configuration")
+            if default is NO_ARG:
+                raise KeyError(f"Key {key} not found in configuration")
+            else:
+                return default
         value = value[k]
     return value

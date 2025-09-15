@@ -26,22 +26,42 @@ huggingface-cli login  # You'll need a token from https://huggingface.co/setting
 
 ### Testing
 ```bash
-# Run all tests
-python -m pytest tests/ -v
+# Run fast tests only (default, ~15 seconds)
+pytest
+
+# Run all tests including slow integration tests
+pytest --with-slow-integration
 
 # Run specific test files
-python -m pytest tests/test_config_loader.py -v
-python -m pytest tests/test_dir_anonymizer.py -v
-python -m pytest tests/test_moodle_prep.py -v
-python -m pytest tests/test_moodle_integration.py -v
+pytest tests/test_config_loader.py -v
+pytest tests/test_dir_anonymizer.py -v
+pytest tests/test_moodle_prep.py -v
+pytest tests/test_moodle_integration.py -v
+pytest tests/test_llm.py -v
+pytest tests/test_llm_integration.py -v
+pytest tests/test_grading_feedback.py -v
+pytest tests/test_grading_feedback_integration.py -v
 
 # Run single test
-python -m pytest tests/test_dir_anonymizer.py::test_custom_config -v
+pytest tests/test_dir_anonymizer.py::test_custom_config -v
 
 # Run chunking tests
-python -m pytest tests/test_text_chunker.py -v
-python -m pytest tests/test_llm_backend_chunking.py -v
+pytest tests/test_text_chunker.py -v
+pytest tests/test_llm_backend_chunking.py -v
+
+# Run only integration tests (API tests)
+pytest -m "integration_test"
+
+# Run only slow integration tests
+pytest -m "slow_integration_test"
 ```
+
+**Important:** Always use plain `pytest` command, not `python -m pytest`. The project is configured to use `pytest` directly with proper markers and settings.
+
+The test suite is organized with pytest markers:
+- **Fast tests** (default): Unit tests and quick integration tests that run in ~15 seconds total
+- **`integration_test`**: Tests that require API keys (OpenAI) but run relatively quickly
+- **`slow_integration_test`**: Tests that take 40+ seconds each (LLM model loading, heavy processing)
 
 ### Linting
 ```bash
@@ -55,8 +75,8 @@ ruff format shilads_helpers/
 
 ### Package Structure
 The codebase follows a standard Python package layout with `shilads_helpers/` as the main package:
-- **libs/**: Shared libraries (config_loader, local_anonymizer, text_chunker)
-- **tools/**: Multi-file tools (dir_anonymizer, moodle_prep)
+- **libs/**: Shared libraries (config_loader, local_anonymizer, text_chunker, llm)
+- **tools/**: Multi-file tools (dir_anonymizer, moodle_prep, grading_feedback)
 - **scripts/**: Single-file utilities (currently empty, ready for simple scripts)
 
 ### Configuration System
@@ -83,6 +103,20 @@ In `libs/local_anonymizer/`:
 In `libs/`:
 - **text_chunker.py**: Generator-based text chunking with token counting and overlap
 
+### LLM Utilities
+In `libs/`:
+- **llm.py**: Utilities for creating pydantic-ai agents with OpenAI models
+  - Automatic configuration loading from YAML
+  - Support for o1 reasoning models with automatic settings management
+  - System prompt customization
+
+### Grading Feedback Tool
+In `tools/grading_feedback/`:
+- **grader.py**: OpenAI-based grading with structured output
+- **rubric_parser.py**: Parses rubric criteria from markdown tables
+- **models.py**: Pydantic models for grading results
+- **cli.py**: Command-line interface for batch grading
+
 ### Import Structure
 All imports use absolute imports from `shilads_helpers` package:
 ```python
@@ -100,6 +134,9 @@ from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 - **PyYAML**: Configuration file handling
 - **tqdm**: Progress bars
 - **faker**: Fallback for generating replacement data
+- **pydantic-ai**: Framework for structured LLM output with OpenAI
+- **openai**: OpenAI API client
+- **pytest**: Testing framework with marker support
 
 ## Adding New Tools
 
@@ -136,3 +173,13 @@ value = get_config("anonymizer.file_types", config)  # Dot notation access
 - Accuracy tests can run against YAML test cases
 - Text chunking has comprehensive test coverage
 - All imports should be absolute from `shilads_helpers` package
+- Tests are organized with pytest markers for performance optimization
+- Slow tests (40+ seconds) are marked with `@pytest.mark.slow_integration_test`
+- Fast tests run by default, slow tests can be run with `--with-slow-integration`
+
+### Recent LLM Integration Changes
+1. **Centralized LLM agent creation**: `libs/llm.py` provides `create_agent()` function
+2. **Simplified configuration**: Agent creation now loads configs automatically
+3. **o1 model support**: Automatic handling of reasoning-specific settings
+4. **Test organization**: Tests split into fast (default) and slow (opt-in) categories
+5. **Grading feedback tool**: New tool for automated grading with OpenAI

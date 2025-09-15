@@ -22,6 +22,14 @@ tools:
   max_threads: 4
   timeout: 300  # seconds
 
+openai:
+  organization: "override-in-local-yaml"
+  api_key: "override-in-local-yaml"
+  model: gpt-5
+  pydantic_ai_settings:
+    openai_reasoning_effort: low
+
+
 # Directory anonymizer settings
 anonymizer:
   # File types to process (by extension)

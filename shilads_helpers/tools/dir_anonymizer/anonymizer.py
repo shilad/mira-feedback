@@ -94,6 +94,68 @@ class DirectoryAnonymizer:
                 return True
         return False
         
+    def is_moodle_submission(self, filename: str) -> bool:
+        """Check if a filename matches the Moodle submission pattern.
+        
+        Moodle submission directories follow the pattern: "Name_ID_assignsubmission_file"
+        
+        Args:
+            filename: The filename to check
+            
+        Returns:
+            True if this matches a Moodle submission pattern
+        """
+        import re
+        moodle_pattern = r'^(.+?)_(\d+)_(assignsubmission_\w+)$'
+        return bool(re.match(moodle_pattern, filename))
+    
+    def anonymize_moodle_submission(self, filename: str) -> str:
+        """Anonymize a Moodle submission directory name.
+        
+        Handles the special case of Moodle submission directories which contain
+        student names that must be anonymized. Pattern: "Name_ID_assignsubmission_file"
+        
+        Args:
+            filename: The Moodle submission directory name
+            
+        Returns:
+            Anonymized directory name with student name replaced
+        """
+        import re
+        moodle_pattern = r'^(.+?)_(\d+)_(assignsubmission_\w+)$'
+        match = re.match(moodle_pattern, filename)
+        
+        if not match:
+            # Shouldn't happen if is_moodle_submission was called first
+            return filename
+        
+        name_part = match.group(1)
+        id_part = match.group(2)
+        suffix_part = match.group(3)
+        
+        # Try to anonymize using LLM first
+        anonymized_name, _ = self.anonymizer.anonymize_data(name_part)
+        
+        # If LLM didn't detect it as a name, force anonymization
+        # since we know this position contains a student name in Moodle format
+        if anonymized_name == name_part:
+            # Name wasn't detected by LLM, force anonymization
+            # Check if we've seen this name before
+            if name_part not in self.anonymizer.entity_memory:
+                # Generate a new tag for this person
+                self.anonymizer.entity_counters['persons'] += 1
+                tag = f"REDACTED_PERSON{self.anonymizer.entity_counters['persons']}"
+                self.anonymizer.entity_memory[name_part] = tag
+            else:
+                tag = self.anonymizer.entity_memory[name_part]
+            anonymized_name = tag
+        
+        # Clean up any extra whitespace or newlines
+        anonymized_name = anonymized_name.strip()
+        
+        # Reconstruct the filename
+        return f"{anonymized_name}_{id_part}_{suffix_part}"
+    
     def anonymize_filename(self, filename: str, is_directory: bool = False) -> str:
         """Anonymize a filename using LLM to detect and redact PII.
         
@@ -111,8 +173,11 @@ class DirectoryAnonymizer:
         if filename == 'moodle_grades.csv':
             return filename
         
+        # Special handling for Moodle submission directories
+        if self.is_moodle_submission(filename):
+            return self.anonymize_moodle_submission(filename)
+        
         # For all other files, use LLM to detect and redact PII
-        # This handles all patterns including Moodle submission directories naturally
         path = Path(filename)
         
         # Separate the extension from the base name for files

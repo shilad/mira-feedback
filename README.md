@@ -50,6 +50,36 @@ shilads-helpers/
 └── pyproject.toml      # Package configuration
 ```
 
+## Libraries
+
+### LLM Utilities (`libs/llm.py`)
+Provides utilities for creating and configuring AI agents using pydantic-ai with OpenAI models.
+
+```python
+from shilads_helpers.libs.llm import create_agent
+
+# Create a basic agent
+agent = create_agent(configs=None, model="gpt-5-mini")
+
+# Create an agent with custom settings
+agent = create_agent(
+    configs=None,
+    model="gpt-5-mini",
+    settings_dict={"openai_reasoning_effort": "high"},
+    system_prompt="You are a helpful coding assistant"
+)
+
+# Run the agent
+import asyncio
+result = asyncio.run(agent.run("What is 2 + 2?"))
+```
+
+Features:
+- Automatic configuration loading from YAML files
+- Support for OpenAI models including o1 reasoning models
+- Automatic handling of reasoning-specific settings
+- System prompt customization
+
 ## Available Tools
 
 ### Moodle Submission Preparation Tool
@@ -159,20 +189,36 @@ The project uses a YAML-based configuration system. Settings are loaded from:
 
 ### Running Tests
 ```bash
-# Run all tests
-python -m pytest tests/ -v
+# Run fast tests only (default) - takes ~15 seconds
+pytest
+
+# Run all tests including slow integration tests
+pytest --with-slow-integration
 
 # Run specific test files
-python -m pytest tests/test_config_loader.py -v
-python -m pytest tests/test_dir_anonymizer.py -v
-python -m pytest tests/test_text_chunker.py -v
-python -m pytest tests/test_llm_backend_chunking.py -v
-python -m pytest tests/test_moodle_prep.py -v
-python -m pytest tests/test_moodle_integration.py -v
+pytest tests/test_config_loader.py -v
+pytest tests/test_dir_anonymizer.py -v
+pytest tests/test_text_chunker.py -v
+pytest tests/test_llm_backend_chunking.py -v
+pytest tests/test_moodle_prep.py -v
+pytest tests/test_moodle_integration.py -v
 
 # Run tests for local anonymizer
-python -m pytest tests/test_local_anonymizer.py -v
+pytest tests/test_local_anonymizer.py -v
+
+# Run only integration tests (API tests)
+pytest -m "integration_test"
+
+# Run only slow integration tests
+pytest -m "slow_integration_test"
 ```
+
+**Note:** Always use plain `pytest` command, not `python -m pytest`. The project is configured to use `pytest` directly.
+
+The test suite is organized with pytest markers:
+- **Fast tests** (default): Unit tests and quick integration tests that run in ~15 seconds
+- **`integration_test`**: (run by default) Tests that require API keys but run relatively quickly
+- **`slow_integration_test`**: Tests that take 40+ seconds (LLM model loading, etc.)
 
 ### Adding New Tools
 

@@ -19,17 +19,22 @@ dependencies = [
     "faker>=20.0.0",
     "html-to-markdown>=1.0.0",
     "pandas>=2.0.0",
+    "openai>=1.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-ai>=0.0.38",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21.0",
 ]
 
 [project.scripts]
 anonymize-dir = "shilads_helpers.tools.dir_anonymizer.cli:main"
 prep-moodle = "shilads_helpers.tools.moodle_prep.cli:main"
+grade-submission = "shilads_helpers.tools.grading_feedback.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -42,6 +47,7 @@ packages = ["shilads_helpers"]
 dev-dependencies = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
 ]
 
@@ -56,4 +62,9 @@ ignore = ["E501"]  # Line too long
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v"
+addopts = "-v --without-slow-integration"
+markers = [
+    "integration_test: mark test as integration test (requires API keys)",
+    "slow_integration_test: mark test as slow integration test (skipped by default)",
+    "asyncio: mark test as async",
+]

@@ -163,6 +163,7 @@ class TestMoodleIntegration:
         # Phone number might have escaped dashes in Markdown
         assert '555' in content and '0123' in content
     
+    @pytest.mark.slow_integration_test
     def test_stage_2_filename_redaction(self, test_zip, tmp_path):
         """Test that filenames are properly redacted using LLM in stage 2."""
         work_dir = tmp_path / "moodle_work"
