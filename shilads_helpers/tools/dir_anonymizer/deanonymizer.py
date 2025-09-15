@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from tqdm import tqdm
 
-from shilads_helpers.libs.config_loader import load_all_configs, get_config
+# Config not needed in deanonymizer - it only uses mappings
 
 # Import both deanonymizer backends
 try:

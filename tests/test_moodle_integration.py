@@ -9,7 +9,32 @@ from unittest.mock import patch
 
 import pytest
 
+from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
+
+
+def get_test_config() -> ConfigType:
+    """Create a test configuration."""
+    return {
+        'anonymizer': {
+            'file_types': ['.py', '.yaml', '.md', '.txt', '.html'],
+            'exclude_patterns': ['.git/*', '__pycache__/*'],
+            'output': {
+                'output_dir': 'anonymized_output',
+                'mapping_file': 'anonymization_mapping.json'
+            },
+            'options': {
+                'anonymize_filenames': True,
+                'preserve_structure': True,
+                'create_report': True
+            },
+            'local_model': {
+                'name': 'Qwen/Qwen3-4B-Instruct-2507',
+                'device': 'mps',
+                'max_input_tokens': 100
+            }
+        }
+    }
 
 
 class TestMoodleIntegration:
@@ -42,7 +67,8 @@ class TestMoodleIntegration:
     def test_full_pipeline(self, test_zip, tmp_path):
         """Test the complete three-stage pipeline with real data."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Mock the DirectoryAnonymizer for stage 2 to avoid slow LLM processing
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer') as mock_anon:
@@ -70,7 +96,8 @@ class TestMoodleIntegration:
     def test_stage_0_online_text_removal(self, test_zip, tmp_path):
         """Test that online text submissions are removed but feedback is preserved in stage 0."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Run only stage 0
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -99,7 +126,8 @@ class TestMoodleIntegration:
     def test_stage_1_moodle_grades_generation(self, test_zip, tmp_path):
         """Test that moodle_grades.csv is generated correctly in stage 1."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -137,7 +165,8 @@ class TestMoodleIntegration:
     def test_stage_1_html_conversion(self, test_zip, tmp_path):
         """Test that HTML files are converted to Markdown in stage 1."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -167,7 +196,8 @@ class TestMoodleIntegration:
     def test_stage_2_filename_redaction(self, test_zip, tmp_path):
         """Test that filenames are properly redacted using LLM in stage 2."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # For this test, we'll actually run the anonymizer since it's the key feature
         # But we'll use a smaller timeout
@@ -178,7 +208,7 @@ class TestMoodleIntegration:
         if stage2_dir.exists():
             # Check that moodle_grades.csv is NOT renamed
             assert (stage2_dir / 'moodle_grades.csv').exists()
-            
+
             # Check that student directories are redacted
             dirs = [d.name for d in stage2_dir.iterdir() if d.is_dir()]
             
@@ -194,7 +224,8 @@ class TestMoodleIntegration:
     def test_feedback_preservation(self, test_zip, tmp_path):
         """Test that feedback directories and content are preserved untouched."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -224,7 +255,8 @@ class TestMoodleIntegration:
     def test_content_preservation(self, test_zip, tmp_path):
         """Test that non-PII content is preserved correctly."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1 only (to avoid slow LLM processing)
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -256,7 +288,8 @@ class TestMoodleIntegration:
     def test_skip_stages(self, test_zip, tmp_path):
         """Test that stages can be skipped correctly."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # First, run stage 0 only
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -277,7 +310,8 @@ class TestMoodleIntegration:
     def test_dry_run(self, test_zip, tmp_path):
         """Test that dry run doesn't create any files."""
         work_dir = tmp_path / "moodle_work"
-        processor = MoodleProcessor(work_dir, dry_run=True)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir, dry_run=True)
         
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip)

@@ -8,6 +8,7 @@ import yaml
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 
+from shilads_helpers.libs.config_loader import load_all_configs
 from .grader import SubmissionGrader
 from .rubric_parser import RubricParser
 
@@ -177,13 +178,6 @@ Examples:
         help='OpenAI model to use (overrides config value)'
     )
     parser.add_argument(
-        '--reasoning-effort',
-        type=str,
-        default=None,
-        choices=['low', 'medium', 'high'],
-        help='Reasoning effort for o1 models (overrides config value)'
-    )
-    parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose logging'
@@ -226,17 +220,12 @@ Examples:
 
     # Initialize grader
     try:
-        # Convert reasoning-effort to settings dict if provided
-        settings = None
-        if args.reasoning_effort:
-            settings = {
-                'openai_reasoning_effort': args.reasoning_effort,
-                'openai_reasoning_summary': 'detailed'
-            }
+        # Load configuration
+        config = load_all_configs()
 
         grader = SubmissionGrader(
-            model=args.model,
-            settings=settings
+            configs=config,
+            model=args.model
         )
     except Exception as e:
         LOG.error(f"Failed to initialize grader: {e}")

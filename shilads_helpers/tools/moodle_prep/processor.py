@@ -6,6 +6,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
+from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 from shilads_helpers.tools.moodle_prep.utils import (
     process_html_files,
@@ -19,15 +20,17 @@ LOG = logging.getLogger(__name__)
 
 class MoodleProcessor:
     """Process Moodle homework submissions through three stages."""
-    
-    def __init__(self, working_dir: Path, keep_html: bool = False, dry_run: bool = False):
+
+    def __init__(self, config: ConfigType, working_dir: Path, keep_html: bool = False, dry_run: bool = False):
         """Initialize the processor.
-        
+
         Args:
+            config: Configuration dictionary
             working_dir: Base directory for all processing stages
             keep_html: If True, keep HTML files alongside Markdown
             dry_run: If True, don't write any files
         """
+        self.config = config
         self.working_dir = Path(working_dir)
         self.keep_html = keep_html
         self.dry_run = dry_run
@@ -183,7 +186,7 @@ class MoodleProcessor:
             grades_dest = stage_dir / 'moodle_grades.csv'
             grades_stats = generate_grades_csv_from_data(self.all_submissions_data, grades_dest)
             LOG.info(f"Generated moodle_grades.csv with {grades_stats['total_students']} students")
-            
+
             # Convert HTML files to Markdown
             self.stats['files_converted'] = process_html_files(stage_dir, self.keep_html)
             
@@ -202,7 +205,7 @@ class MoodleProcessor:
         if not self.dry_run:
             # Use DirectoryAnonymizer to redact PII
             LOG.info("Running PII redaction...")
-            anonymizer = DirectoryAnonymizer(anonymize_filenames=True)  # Anonymize filenames for full privacy
+            anonymizer = DirectoryAnonymizer(config=self.config, anonymize_filenames=True)  # Anonymize filenames for full privacy
             
             # Run anonymization
             results = anonymizer.process_directory(

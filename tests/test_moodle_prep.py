@@ -9,7 +9,32 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
+
+
+def get_test_config() -> ConfigType:
+    """Create a test configuration."""
+    return {
+        'anonymizer': {
+            'file_types': ['.py', '.yaml', '.md', '.txt', '.html'],
+            'exclude_patterns': ['.git/*', '__pycache__/*'],
+            'output': {
+                'output_dir': 'anonymized_output',
+                'mapping_file': 'anonymization_mapping.json'
+            },
+            'options': {
+                'anonymize_filenames': True,
+                'preserve_structure': True,
+                'create_report': True
+            },
+            'local_model': {
+                'name': 'microsoft/Phi-3-mini-4k-instruct',
+                'device': 'cpu',
+                'max_input_tokens': 100
+            }
+        }
+    }
 from shilads_helpers.tools.moodle_prep.utils import (
     parse_moodle_dirname,
     convert_html_to_markdown
@@ -58,7 +83,8 @@ class TestMoodleProcessor:
     
     def test_processor_initialization(self, tmp_path):
         """Test processor initialization."""
-        processor = MoodleProcessor(tmp_path)
+        config = get_test_config()
+        processor = MoodleProcessor(config, tmp_path)
         
         assert processor.working_dir == tmp_path
         assert processor.stage_dirs['0_submitted'] == tmp_path / '0_submitted'
@@ -67,7 +93,8 @@ class TestMoodleProcessor:
     
     def test_stage_info(self, tmp_path):
         """Test getting stage information."""
-        processor = MoodleProcessor(tmp_path)
+        config = get_test_config()
+        processor = MoodleProcessor(config, tmp_path)
         
         # Create some test directories
         (tmp_path / '0_submitted').mkdir()
@@ -92,7 +119,8 @@ class TestMoodleProcessor:
             zf.writestr("Jane Smith_67890_assignsubmission_onlinetext/onlinetext.html", "<p>Online submission</p>")
         
         # Run processor in dry run mode
-        processor = MoodleProcessor(work_dir, dry_run=True)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir, dry_run=True)
         
         # Mock the DirectoryAnonymizer to avoid dependency issues
         with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
@@ -113,7 +141,8 @@ class TestMoodleProcessor:
             zf.writestr("John Doe_12345_assignsubmission_file/test.txt", "test content")
         
         # Create processor
-        processor = MoodleProcessor(work_dir)
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
         
         # Create stage 0 directory manually to test skipping
         stage0_dir = work_dir / '0_submitted'

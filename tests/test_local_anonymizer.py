@@ -7,9 +7,34 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.libs.local_anonymizer import LocalAnonymizer, LocalDeanonymizer
 from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 from shilads_helpers.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
+
+
+def get_test_config() -> ConfigType:
+    """Create a test configuration for DirectoryAnonymizer."""
+    return {
+        'anonymizer': {
+            'file_types': ['.py', '.yaml', '.md', '.txt'],
+            'exclude_patterns': ['.git/*', '__pycache__/*'],
+            'output': {
+                'output_dir': 'anonymized_output',
+                'mapping_file': 'anonymization_mapping.json'
+            },
+            'options': {
+                'anonymize_filenames': True,
+                'preserve_structure': True,
+                'create_report': True
+            },
+            'local_model': {
+                'name': 'microsoft/Phi-3-mini-4k-instruct',
+                'device': 'cpu',
+                'max_input_tokens': 100
+            }
+        }
+    }
 
 
 @pytest.fixture
@@ -219,7 +244,8 @@ class TestDirectoryAnonymization:
         
         try:
             # Use local backend which will use our mock
-            anonymizer = DirectoryAnonymizer(anonymize_filenames=False)
+            config = get_test_config()
+            anonymizer = DirectoryAnonymizer(config=config, anonymize_filenames=False)
             
             # Process directory
             results = anonymizer.process_directory(
@@ -265,7 +291,8 @@ class TestDirectoryAnonymization:
         
         try:
             # Anonymize
-            anonymizer = DirectoryAnonymizer(anonymize_filenames=False)
+            config = get_test_config()
+            anonymizer = DirectoryAnonymizer(config=config, anonymize_filenames=False)
             results = anonymizer.process_directory(
                 input_dir=temp_test_dir,
                 output_dir=anon_dir,
@@ -302,7 +329,8 @@ class TestDirectoryAnonymization:
         output_dir = tempfile.mkdtemp()
         
         try:
-            anonymizer = DirectoryAnonymizer()
+            config = get_test_config()
+            anonymizer = DirectoryAnonymizer(config=config)
             
             # Process with dry_run
             results = anonymizer.process_directory(

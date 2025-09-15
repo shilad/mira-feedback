@@ -6,6 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
+from shilads_helpers.libs.config_loader import load_all_configs
 from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
 
 logging.basicConfig(
@@ -89,9 +90,13 @@ Example:
         if not args.zip.exists():
             LOG.error(f"Zip file not found: {args.zip}")
             sys.exit(1)
-    
+
+    # Load configuration
+    config = load_all_configs()
+
     # Create processor
     processor = MoodleProcessor(
+        config=config,
         working_dir=args.workdir,
         keep_html=args.keep_html,
         dry_run=args.dry_run

@@ -6,7 +6,7 @@ from typing import Dict, List, Any
 from collections import defaultdict
 
 from shilads_helpers.libs.local_anonymizer import LocalAnonymizer
-from shilads_helpers.libs.config_loader import load_all_configs, get_config
+from shilads_helpers.libs.config_loader import ConfigType, get_config
 
 
 class AccuracyMetrics:
@@ -153,23 +153,23 @@ class AccuracyMetrics:
 class AccuracyTester:
     """Run accuracy tests from YAML files."""
     
-    def __init__(self, test_dir: Path = None, backend: str = "local"):
+    def __init__(self, config: ConfigType, test_dir: Path = None, backend: str = "local"):
         """Initialize the accuracy tester.
-        
+
         Args:
+            config: Configuration dictionary (required)
             test_dir: Directory containing test YAML files
             backend: Anonymizer backend to use ('local' or 'anonllm')
         """
         if test_dir is None:
             # Default to test_cases in same directory
             test_dir = Path(__file__).parent / "test_cases"
-        
+
         self.test_dir = Path(test_dir)
         self.backend = backend
         self.metrics = AccuracyMetrics()
-        
-        # Load config and create anonymizer from it
-        config = load_all_configs()
+
+        # Create anonymizer from config
         anon_config = get_config('anonymizer', config)
         self.anonymizer = LocalAnonymizer.create_from_config(anon_config)
     

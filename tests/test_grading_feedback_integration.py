@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import yaml
 
+from shilads_helpers.libs.config_loader import load_all_configs
 from shilads_helpers.tools.grading_feedback.grader import SubmissionGrader
 from shilads_helpers.tools.grading_feedback.rubric_parser import RubricParser
 from shilads_helpers.tools.grading_feedback.models import RubricCriterion
@@ -56,7 +57,9 @@ print(fibonacci(10)) # Output: 55
 """
 
         # Grade the submission
-        grader = SubmissionGrader(model="gpt-5-mini")  # Use cheaper model for tests
+        config = load_all_configs()
+        config = load_all_configs()
+        grader = SubmissionGrader(configs=config, model="gpt-5-mini")  # Use cheaper model for tests
         result = grader.grade(submission, rubric_criteria)
 
         # Verify result structure
@@ -118,7 +121,9 @@ ggplot(wheels, aes(x = height, y = diameter)) +
 """
 
         # Grade the submission
-        grader = SubmissionGrader(model="gpt-5-mini")
+        config = load_all_configs()
+        config = load_all_configs()
+        grader = SubmissionGrader(configs=config, model="gpt-5-mini")
         result = grader.grade(submission, rubric_criteria)
         print(result)
 
@@ -149,7 +154,9 @@ ggplot(wheels, aes(x = height, y = diameter)) +
 
         submission = "This is a complete assignment with all required components."
 
-        grader = SubmissionGrader(model="gpt-5-mini")
+        config = load_all_configs()
+        config = load_all_configs()
+        grader = SubmissionGrader(configs=config, model="gpt-5-mini")
         result = await grader.grade_async(submission, rubric_criteria)
 
         assert result.total_score >= 0
@@ -184,7 +191,8 @@ if __name__ == "__main__":
 """)
 
             # Grade using file methods
-            grader = SubmissionGrader(model="gpt-5-mini")
+            config = load_all_configs()
+            grader = SubmissionGrader(configs=config, model="gpt-5-mini")
             result = grader.grade_submission_file(submission_file, rubric_file)
 
             # Verify results

@@ -11,6 +11,9 @@ LOG = logging.getLogger(__name__)
 
 ConfigType = dict[str, Any]
 
+# Export ConfigType for use throughout the codebase
+__all__ = ['ConfigType', 'load_configs', 'load_default_configs', 'load_all_configs', 'get_config']
+
 
 def load_configs(*path_configs: str) -> dict[str, Any]:
     """Load and merge YAML configuration files.

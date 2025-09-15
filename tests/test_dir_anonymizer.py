@@ -8,8 +8,33 @@ import shutil
 from pathlib import Path
 import pytest
 
+from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 from shilads_helpers.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
+
+
+def get_test_config() -> ConfigType:
+    """Create a test configuration."""
+    return {
+        'anonymizer': {
+            'file_types': ['.py', '.yaml', '.md', '.txt'],
+            'exclude_patterns': ['.git/*', '__pycache__/*'],
+            'output': {
+                'output_dir': 'anonymized_output',
+                'mapping_file': 'anonymization_mapping.json'
+            },
+            'options': {
+                'anonymize_filenames': True,
+                'preserve_structure': True,
+                'create_report': True
+            },
+            'local_model': {
+                'name': 'Qwen/Qwen3-4B-Instruct-2507',
+                'device': 'mps',
+                'max_input_tokens': 100
+            }
+        }
+    }
 
 
 @pytest.fixture
@@ -67,7 +92,8 @@ def test_anonymize_directory(temp_test_dir):
     
     try:
         # Create anonymizer with filename anonymization disabled for this test
-        anonymizer = DirectoryAnonymizer(anonymize_filenames=False)
+        config = get_test_config()
+        anonymizer = DirectoryAnonymizer(config=config, anonymize_filenames=False)
         
         # Process directory
         results = anonymizer.process_directory(
@@ -119,7 +145,8 @@ def test_anonymize_and_restore(temp_test_dir):
     
     try:
         # Anonymize
-        anonymizer = DirectoryAnonymizer()
+        config = get_test_config()
+        anonymizer = DirectoryAnonymizer(config=config)
         results = anonymizer.process_directory(
             input_dir=temp_test_dir,
             output_dir=anon_dir,
@@ -161,9 +188,10 @@ def test_anonymize_and_restore(temp_test_dir):
 def test_dry_run(temp_test_dir):
     """Test dry run mode doesn't create files."""
     output_dir = tempfile.mkdtemp()
-    
+
     try:
-        anonymizer = DirectoryAnonymizer()
+        config = get_test_config()
+        anonymizer = DirectoryAnonymizer(config=config)
         
         # Run in dry-run mode
         results = anonymizer.process_directory(
@@ -220,7 +248,8 @@ def test_file_type_filtering(temp_test_dir):
     
     try:
         # Disable filename anonymization for this test
-        anonymizer = DirectoryAnonymizer(anonymize_filenames=False)
+        config = get_test_config()
+        anonymizer = DirectoryAnonymizer(config=config, anonymize_filenames=False)
         results = anonymizer.process_directory(
             input_dir=temp_test_dir,
             output_dir=output_dir,
@@ -283,7 +312,7 @@ Jane Doe,jane.doe@example.com,95
 """)
         
         # Run anonymization with filename anonymization enabled
-        anonymizer = DirectoryAnonymizer(anonymize_filenames=True)
+        anonymizer = DirectoryAnonymizer(config=get_test_config(), anonymize_filenames=True)
         
         # First verify the Moodle detection works
         for submission_dir in test_submissions:
@@ -310,7 +339,7 @@ Jane Doe,jane.doe@example.com,95
                            'Xavier', 'Cruz', 'Bob', 'Smith', 'Jane', 'Doe']:
                 assert original not in dir_name, \
                     f"Name '{original}' leaked in anonymized directory: {dir_name}"
-        
+
         # Check that moodle_grades.csv was not renamed
         assert (Path(output_dir) / 'moodle_grades.csv').exists(), \
             "moodle_grades.csv should not be renamed"

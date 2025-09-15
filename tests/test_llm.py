@@ -32,19 +32,13 @@ class TestCreateAgent:
         # Check that agent was created
         assert agent is not None
 
-    @patch('shilads_helpers.libs.llm.get_config')
-    def test_create_agent_with_custom_config(self, mock_get_config):
+    def test_create_agent_with_custom_config(self):
         """Test creating agent with custom configuration."""
-        # Mock config values
-        mock_get_config.side_effect = lambda key, configs, default=None: {
-            "openai.api_key": "custom-key",
-            "openai.organization": "custom-org"
-        }.get(key, default)
-
         custom_configs = {
             "openai": {
                 "api_key": "custom-key",
-                "organization": "custom-org"
+                "organization": "custom-org",
+                "model": "gpt-3.5-turbo"
             }
         }
 

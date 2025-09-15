@@ -14,7 +14,7 @@ LOG = logging.getLogger(__name__)
 class LLMBackend:
     """Handles LLM model loading and inference for PII detection."""
     
-    def __init__(self, model_name: str = "mistralai/Mistral-7B-Instruct-v0.3", device: str = "cpu", max_input_tokens: int = 100):
+    def __init__(self, model_name: str = "Qwen/Qwen3-4B-Instruct-2507", device: str = "mps", max_input_tokens: int = 100):
         """Initialize the LLM backend.
         
         Args:
@@ -26,6 +26,9 @@ class LLMBackend:
         self.device = device
         self.max_input_tokens = max_input_tokens
         self.lookback_words = 5  # Number of words to overlap between chunks
+
+        if self.device not in ("cpu", "cuda", "mps"):
+            raise ValueError("Device must be 'cpu', 'cuda', or 'mps'")
         
         LOG.info(f"Loading model: {model_name} on {device}")
         

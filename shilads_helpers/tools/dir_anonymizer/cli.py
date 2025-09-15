@@ -6,6 +6,7 @@ import argparse
 import logging
 from pathlib import Path
 
+from shilads_helpers.libs.config_loader import load_all_configs
 from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 from shilads_helpers.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
 from shilads_helpers.tools.dir_anonymizer.accuracy import AccuracyTester
@@ -20,9 +21,12 @@ LOG = logging.getLogger(__name__)
 def anonymize_command(args):
     """Handle the anonymize command."""
     try:
+        # Load configuration
+        config = load_all_configs()
+
         # Determine whether to anonymize filenames (default is True)
         anonymize_filenames = not args.keep_original_filenames
-        anonymizer = DirectoryAnonymizer(anonymize_filenames=anonymize_filenames)
+        anonymizer = DirectoryAnonymizer(config=config, anonymize_filenames=anonymize_filenames)
         
         LOG.info(f"Anonymizing directory: {args.input_dir}")
         if args.output_dir:
@@ -85,8 +89,11 @@ def deanonymize_command(args):
 def accuracy_command(args):
     """Handle the accuracy test command."""
     try:
+        # Load configuration
+        config = load_all_configs()
+
         test_dir = Path(args.test_dir) if args.test_dir else None
-        tester = AccuracyTester(test_dir=test_dir, backend=args.backend)
+        tester = AccuracyTester(config=config, test_dir=test_dir, backend=args.backend)
         tester.run(verbose=args.verbose)
     except Exception as e:
         LOG.error(f"Accuracy testing failed: {e}")

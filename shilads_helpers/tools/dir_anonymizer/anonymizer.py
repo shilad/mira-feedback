@@ -10,7 +10,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from fnmatch import fnmatch
 from tqdm import tqdm
 
-from shilads_helpers.libs.config_loader import load_all_configs, get_config
+from shilads_helpers.libs.config_loader import ConfigType, get_config
 from shilads_helpers.libs.local_anonymizer import LocalAnonymizer
 
 logging.basicConfig(level=logging.INFO)
@@ -20,14 +20,14 @@ LOG = logging.getLogger(__name__)
 class DirectoryAnonymizer:
     """Anonymize directory contents and optionally filenames."""
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None, anonymize_filenames: Optional[bool] = None):
+    def __init__(self, config: ConfigType, anonymize_filenames: Optional[bool] = None):
         """Initialize the anonymizer with configuration.
-        
+
         Args:
-            config: Configuration dict. If None, loads from config files.
+            config: Configuration dict (required).
             anonymize_filenames: Override for filename anonymization. If None, uses config value.
         """
-        self.config = config or load_all_configs()
+        self.config = config
         self.anon_config = get_config('anonymizer', self.config)
         
         # Override anonymize_filenames if provided
@@ -64,6 +64,10 @@ class DirectoryAnonymizer:
         Returns:
             True if file should be processed
         """
+        # Special case: Always process moodle_grades.csv
+        if file_path.name == 'moodle_grades.csv':
+            return True
+
         # Check if file extension is in allowed types
         file_types = self.anon_config.get('file_types', [])
         if not any(file_path.suffix.lower() == ft.lower() for ft in file_types):
@@ -299,9 +303,6 @@ class DirectoryAnonymizer:
                             # Check if this is a file or directory
                             is_last = (i == len(parts) - 1)
                             is_dir = not is_last  # All parts except last are directories
-                            
-                            # For directories, first check if it matches Moodle pattern
-                            # The Moodle check is done inside anonymize_filename
                             anon_part = self.anonymize_filename(part, is_directory=is_dir)
                             anonymized_parts.append(anon_part)
                             # Store mapping

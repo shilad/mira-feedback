@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from shilads_helpers.libs.config_loader import load_all_configs
+from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.libs.llm import create_agent
 from .models import RubricCriterion, ComponentFeedback, GradingResult
 from .rubric_parser import RubricParser
@@ -13,7 +13,7 @@ from .rubric_parser import RubricParser
 LOG = logging.getLogger(__name__)
 
 
-def create_grading_agent(configs: Optional[Dict[str, Any]] = None,
+def create_grading_agent(configs: ConfigType,
                          model: Optional[str] = None,
                          settings_dict: Optional[Dict[str, Any]] = None) -> Any:
     """
@@ -22,7 +22,7 @@ def create_grading_agent(configs: Optional[Dict[str, Any]] = None,
     This is a wrapper around the general create_agent function with a grading-specific prompt.
 
     Args:
-        configs: Configuration dictionary (if not provided, loaded from config files)
+        configs: Configuration dictionary (required)
         model: Model to use (overrides config value)
         settings_dict: Pydantic AI settings dict (overrides config values)
 
@@ -46,17 +46,17 @@ def create_grading_agent(configs: Optional[Dict[str, Any]] = None,
 class SubmissionGrader:
     """Grade submissions using OpenAI with structured output."""
 
-    def __init__(self, configs: Optional[Dict[str, Any]] = None,
+    def __init__(self, configs: ConfigType,
                  model: Optional[str] = None, settings: Optional[Dict[str, Any]] = None):
         """
         Initialize the grader.
 
         Args:
-            configs: Configuration dictionary (if not provided, loaded from config files)
+            configs: Configuration dictionary (required)
             model: Model to use (overrides config value)
             settings: Pydantic AI settings dict (overrides config values)
         """
-        self.configs = configs if configs is not None else load_all_configs()
+        self.configs = configs
 
         # Store model and settings for later use
         self.model_name = model
