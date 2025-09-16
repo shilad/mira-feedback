@@ -35,6 +35,7 @@ dev = [
 anonymize-dir = "shilads_helpers.tools.dir_anonymizer.cli:main"
 prep-moodle = "shilads_helpers.tools.moodle_prep.cli:main"
 grade-submission = "shilads_helpers.tools.grading_feedback.cli:main"
+grade-batch = "shilads_helpers.tools.grading_feedback.batch_cli:main"
 
 [build-system]
 requires = ["hatchling"]

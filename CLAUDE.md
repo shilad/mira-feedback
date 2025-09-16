@@ -8,6 +8,21 @@ This is a collection of Python utilities and scripts for academic (Macalester CS
 
 ## Common Commands
 
+### Grading Commands
+```bash
+# Grade a single submission
+grade-submission --submission-dir hw/student1/ --rubric rubric.md
+
+# Grade all submissions in parallel (new batch grader)
+grade-batch --submissions-dir hw/submissions/ --rubric rubric.md
+
+# Batch grade with custom settings
+grade-batch -s hw/submissions/ -r rubric.md --max-threads 8 --model gpt-4
+
+# Save summary to specific location
+grade-batch -s hw/submissions/ -r rubric.md --summary grading_results.yaml
+```
+
 ### Development Setup
 ```bash
 # Install uv (if not already installed)
@@ -40,7 +55,8 @@ pytest tests/test_moodle_integration.py -v
 pytest tests/test_llm.py -v
 pytest tests/test_llm_integration.py -v
 pytest tests/test_grading_feedback.py -v
-pytest tests/test_grading_feedback_integration.py -v
+pytest tests/test_batch_grader.py -v
+pytest tests/test_submission_utils.py -v
 
 # Run single test
 pytest tests/test_dir_anonymizer.py::test_custom_config -v
@@ -112,10 +128,13 @@ In `libs/`:
 
 ### Grading Feedback Tool
 In `tools/grading_feedback/`:
-- **grader.py**: OpenAI-based grading with structured output
+- **grader.py**: OpenAI-based grading with structured output and async support
+- **batch_grader.py**: Parallel batch grading for multiple submissions with async/await
+- **batch_cli.py**: CLI for batch grading with progress tracking
+- **submission_utils.py**: Utilities for processing submission directories
 - **rubric_parser.py**: Parses rubric criteria from markdown tables
 - **models.py**: Pydantic models for grading results
-- **cli.py**: Command-line interface for batch grading
+- **cli.py**: Command-line interface for single submission grading
 
 ### Import Structure
 All imports use absolute imports from `shilads_helpers` package:
@@ -182,4 +201,14 @@ value = get_config("anonymizer.file_types", config)  # Dot notation access
 2. **Simplified configuration**: Agent creation now loads configs automatically
 3. **o1 model support**: Automatic handling of reasoning-specific settings
 4. **Test organization**: Tests split into fast (default) and slow (opt-in) categories
-5. **Grading feedback tool**: New tool for automated grading with OpenAI
+5. **Grading feedback tool**: Automated grading with OpenAI
+   - Async/await support for parallel processing
+   - New batch grading CLI (`grade-batch`) for processing multiple submissions concurrently
+   - Smart file selection for large submissions
+   - Progress tracking with tqdm
+   - Unified mappings format for anonymization (flat dict structure)
+6. **Anonymization improvements**:
+   - Simplified mappings to flat dict format (token -> original)
+   - Path caching for consistent directory anonymization
+   - Improved consistency testing
+- Note: gpt-5-mini and gpt-5 are both legitimate models with reasoning capabilities

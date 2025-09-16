@@ -129,9 +129,10 @@ class MoodleProcessor:
                             "name": student_name,
                             "id": student_id,
                             "type": submission_type,
-                            "online_text": ""
+                            "online_text": "",
+                            "online_text_full": ""  # Store full content for file creation
                         }
-                        
+
                         # If online text, capture content before removing
                         if submission_type == "onlinetext":
                             # Look for onlinetext files
@@ -143,7 +144,9 @@ class MoodleProcessor:
                                         # Convert HTML to Markdown if it's an HTML file
                                         if ext == '.html':
                                             content = convert_html_to_markdown(content)
-                                        # Store up to 1000 characters of the markdown content
+                                        # Store full content for file creation
+                                        submission_record["online_text_full"] = content
+                                        # Store up to 1000 characters for CSV
                                         submission_record["online_text"] = content[:1000] if len(content) > 1000 else content
                                         break
                                     except Exception as e:
@@ -168,30 +171,51 @@ class MoodleProcessor:
                 self.stats['files_extracted'] = len(zip_ref.namelist())
     
     def _stage2_prepare(self):
-        """Stage 2: Generate moodle_grades.csv and convert HTML to Markdown."""
+        """Stage 2: Generate moodle_grades.csv, convert HTML to Markdown, and create moodle_comments.txt files."""
         source_dir = self.stage_dirs['0_submitted']
         stage_dir = self.stage_dirs['1_prep']
-        
+
         if not source_dir.exists():
             LOG.error(f"Source directory {source_dir} does not exist. Run stage 1 first.")
             return
-        
+
         if not self.dry_run:
             # Copy entire directory structure
             if stage_dir.exists():
                 shutil.rmtree(stage_dir)
             shutil.copytree(source_dir, stage_dir)
-            
+
             # Generate moodle_grades.csv from collected submission data
             grades_dest = stage_dir / 'moodle_grades.csv'
             grades_stats = generate_grades_csv_from_data(self.all_submissions_data, grades_dest)
             LOG.info(f"Generated moodle_grades.csv with {grades_stats['total_students']} students")
 
+            # Create moodle_comments.txt files for online text submissions
+            online_text_count = 0
+            for submission in self.all_submissions_data:
+                if submission.get("online_text_full"):
+                    # Find the corresponding directory in stage_dir
+                    # Look for directories that start with the student's name and ID
+                    for item in stage_dir.iterdir():
+                        if item.is_dir():
+                            dir_student_name, dir_student_id, _ = parse_moodle_dirname(item.name)
+                            if (dir_student_name == submission["name"] and
+                                dir_student_id == submission["id"]):
+                                # Create moodle_comments.txt in this directory
+                                comments_file = item / "moodle_comments.txt"
+                                comments_file.write_text(submission["online_text_full"], encoding='utf-8')
+                                online_text_count += 1
+                                LOG.debug(f"Created moodle_comments.txt for {submission['name']}")
+                                break
+
+            if online_text_count > 0:
+                LOG.info(f"Created {online_text_count} moodle_comments.txt files for online text submissions")
+
             # Convert HTML files to Markdown
             self.stats['files_converted'] = process_html_files(stage_dir, self.keep_html)
-            
+
         else:
-            LOG.info("[DRY RUN] Would generate moodle_grades.csv and convert HTML files to Markdown")
+            LOG.info("[DRY RUN] Would generate moodle_grades.csv, convert HTML files to Markdown, and create moodle_comments.txt files")
     
     def _stage3_redact(self):
         """Stage 3: Redact PII content using DirectoryAnonymizer."""
@@ -210,8 +234,7 @@ class MoodleProcessor:
             # Run anonymization
             results = anonymizer.process_directory(
                 input_dir=str(source_dir),
-                output_dir=str(stage_dir),
-                dry_run=False
+                output_dir=str(stage_dir)
             )
             
             # Update stats

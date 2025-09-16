@@ -261,7 +261,7 @@ class TestCLI:
 
     def test_find_all_submission_files(self):
         """Test finding submission files."""
-        from shilads_helpers.tools.grading_feedback.cli import find_all_submission_files
+        from shilads_helpers.tools.grading_feedback.submission_utils import find_all_submission_files
 
         # Create a temporary directory with files
         import tempfile
@@ -285,7 +285,7 @@ class TestCLI:
 
     def test_find_all_submission_files_skips_feedback(self):
         """Test that feedback files are skipped."""
-        from shilads_helpers.tools.grading_feedback.cli import find_all_submission_files
+        from shilads_helpers.tools.grading_feedback.submission_utils import find_all_submission_files
 
         import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:

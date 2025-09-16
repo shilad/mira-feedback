@@ -29,24 +29,25 @@ class DirectoryAnonymizer:
         """
         self.config = config
         self.anon_config = get_config('anonymizer', self.config)
-        
-        # Override anonymize_filenames if provided
-        if anonymize_filenames is not None:
-            if 'options' not in self.anon_config:
-                self.anon_config['options'] = {}
-            self.anon_config['options']['anonymize_filenames'] = anonymize_filenames
-        
+        self.anonymize_filenames = (
+            anonymize_filenames if anonymize_filenames is not None
+            else get_config('options.anonymize_filenames', self.anon_config, True)
+        )
+
         # Initialize local LLM-based anonymizer from config
         self.anonymizer = LocalAnonymizer.create_from_config(self.anon_config)
         LOG.info("Using local LLM anonymizer")
-        
+
         # Initialize Moodle grades handler lazily to avoid circular import
         self.moodle_grades_handler = None
-        
-        # Track all mappings
+
+        # Cache for anonymized paths to ensure consistency
+        # Maps original relative path -> anonymized relative path
+        self.path_cache = {}
+
+        # Track all mappings - unified for both paths and content
         self.all_mappings = {
-            'files': {},
-            'content_mappings': {},
+            'mappings': {},  # Unified mappings: redacted_token -> original_text
             'statistics': {
                 'total_files': 0,
                 'processed_files': 0,
@@ -160,7 +161,7 @@ class DirectoryAnonymizer:
         # Reconstruct the filename
         return f"{anonymized_name}_{id_part}_{suffix_part}"
     
-    def anonymize_filename(self, filename: str, is_directory: bool = False) -> str:
+    def anonymize_filename(self, filename: str, is_directory: bool = False) -> Tuple[str, Dict[str, str]]:
         """Anonymize a filename using LLM to detect and redact PII.
         
         Uses the LLM to intelligently detect PII in filenames and redact only
@@ -169,22 +170,20 @@ class DirectoryAnonymizer:
         Args:
             filename: Original filename
             is_directory: Whether this is a directory name (unused but kept for compatibility)
-            
+
         Returns:
-            Anonymized filename with PII replaced by standard redaction tokens
+            Tuple of (anonymized filename, mappings dict)
         """
         # Special case: Never redact moodle_grades.csv
         if filename == 'moodle_grades.csv':
-            return filename
-        
+            return filename, {}
+
         # Special handling for Moodle submission directories
         if self.is_moodle_submission(filename):
-            return self.anonymize_moodle_submission(filename)
-        
-        # For all other files, use LLM to detect and redact PII
-        path = Path(filename)
+            return self.anonymize_moodle_submission(filename), {}
         
         # Separate the extension from the base name for files
+        path = Path(filename)
         if not is_directory and path.suffix:
             # Get all extensions (handles cases like .tar.gz)
             ext = ''.join(path.suffixes)
@@ -195,25 +194,22 @@ class DirectoryAnonymizer:
         
         # Use the LLM to anonymize the base name
         # The LLM will detect names, emails, phones, etc. and replace with standard tokens
-        anonymized_base, _ = self.anonymizer.anonymize_data(base_name)
-        
-        # Clean up any extra whitespace or newlines from LLM output
-        anonymized_base = anonymized_base.strip()
-        
-        # Reconstruct the filename with the preserved extension
+        anonymized_base, mappings = self.anonymizer.anonymize_data(base_name)
+        anonymized_filename = anonymized_base.strip()
         if ext:
-            return f"{anonymized_base}{ext}"
-        else:
-            return anonymized_base
+            anonymized_filename += ext
+
+        # mappings is now a flat dict: token -> original
+        return anonymized_filename, mappings
         
-    def anonymize_file_content(self, file_path: Path) -> Tuple[str, Dict[str, Any]]:
+    def anonymize_file_content(self, file_path: Path) -> Tuple[str, Dict[str, str]]:
         """Anonymize the content of a single file.
-        
+
         Args:
             file_path: Path to the file
-            
+
         Returns:
-            Tuple of (anonymized content, mappings)
+            Tuple of (anonymized content, flat mappings dict)
         """
         try:
             # Special handling for moodle_grades.csv
@@ -224,34 +220,32 @@ class DirectoryAnonymizer:
                     self.moodle_grades_handler = MoodleGradesHandler()
                 LOG.info(f"Using specialized handler for {file_path.name}")
                 return self.moodle_grades_handler.anonymize_moodle_grades(file_path)
-            
+
             # Default LLM-based anonymization for other files
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
-                
+
+            # Returns flat dict: token -> original
             anonymized_content, mappings = self.anonymizer.anonymize_data(content)
             return anonymized_content, mappings
-            
+
         except Exception as e:
             LOG.warning(f"Could not process file {file_path}: {e}")
             raise
             
-    def process_directory(self, 
+    def process_directory(self,
                          input_dir: str,
-                         output_dir: Optional[str] = None,
-                         dry_run: bool = False) -> Dict[str, Any]:
+                         output_dir: Optional[str] = None) -> Dict[str, Any]:
         """Process an entire directory tree.
-        
+
         Args:
             input_dir: Input directory path
             output_dir: Output directory path (from config if not specified)
-            dry_run: If True, don't write files, just return what would be done
-            
+
         Returns:
             Dictionary with all mappings and statistics
         """
         input_path = Path(input_dir).resolve()
-        
         if not input_path.exists():
             raise ValueError(f"Input directory does not exist: {input_path}")
             
@@ -259,77 +253,16 @@ class DirectoryAnonymizer:
         if output_dir is None:
             output_dir = self.anon_config['output']['output_dir']
         output_path = Path(output_dir).resolve()
-        
-        # Get options
-        anonymize_filenames = self.anon_config['options']['anonymize_filenames']
-        preserve_structure = self.anon_config['options']['preserve_structure']
-        
+
         # Collect all files to process
-        files_to_process = []
-        for root, dirs, files in os.walk(input_path):
-            root_path = Path(root)
-            
-            # Filter out excluded directories
-            excluded_dirs = []
-            for d in dirs:
-                if self.should_exclude_dir(root_path / d):
-                    LOG.warning(f"Skipping directory (matches exclude pattern): {root_path / d}")
-                    excluded_dirs.append(d)
-            dirs[:] = [d for d in dirs if d not in excluded_dirs]
-            
-            for file in files:
-                file_path = root_path / file
-                if self.should_process_file(file_path):
-                    files_to_process.append(file_path)
-                    
+        files_to_process = self.gather_files_to_process(input_path)
         self.all_mappings['statistics']['total_files'] = len(files_to_process)
-        
-        if dry_run:
-            LOG.info(f"DRY RUN: Would process {len(files_to_process)} files")
-            return self.all_mappings
-            
+
         # Process files with progress bar
         with tqdm(total=len(files_to_process), desc="Anonymizing files") as pbar:
             for file_path in files_to_process:
                 try:
-                    # Determine output file path
-                    rel_path = file_path.relative_to(input_path)
-                    
-                    if anonymize_filenames:
-                        # Anonymize each part of the path
-                        parts = list(rel_path.parts)
-                        anonymized_parts = []
-                        for i, part in enumerate(parts):
-                            # Check if this is a file or directory
-                            is_last = (i == len(parts) - 1)
-                            is_dir = not is_last  # All parts except last are directories
-                            anon_part = self.anonymize_filename(part, is_directory=is_dir)
-                            anonymized_parts.append(anon_part)
-                            # Store mapping
-                            self.all_mappings['files'][part] = anon_part
-                        out_rel_path = Path(*anonymized_parts)
-                    else:
-                        out_rel_path = rel_path
-                        
-                    out_file_path = output_path / out_rel_path
-                    
-                    # Create output directory
-                    out_file_path.parent.mkdir(parents=True, exist_ok=True)
-                    
-                    # Anonymize content
-                    anon_content, content_mappings = self.anonymize_file_content(file_path)
-                    
-                    # Write anonymized content
-                    with open(out_file_path, 'w', encoding='utf-8') as f:
-                        f.write(anon_content)
-                        
-                    # Store mappings
-                    file_key = str(rel_path)
-                    self.all_mappings['content_mappings'][file_key] = content_mappings
-                    self.all_mappings['files'][file_key] = str(out_rel_path)
-                    
-                    self.all_mappings['statistics']['processed_files'] += 1
-                    
+                    self.anonymize_one_file(file_path, input_path, output_path)
                 except Exception as e:
                     LOG.error(f"Error processing {file_path}: {e}")
                     self.all_mappings['statistics']['errors'].append({
@@ -345,7 +278,6 @@ class DirectoryAnonymizer:
         mapping_file = output_path / mapping_filename
         with open(mapping_file, 'w') as f:
             json.dump(self.all_mappings, f, indent=2)
-            
         LOG.info(f"Anonymization complete. Mapping saved to {mapping_file}")
         
         # Create report if requested
@@ -353,39 +285,135 @@ class DirectoryAnonymizer:
             self.create_report(output_path)
             
         return self.all_mappings
-        
+
+    def anonymize_one_file(self, file_path, input_path, output_path):
+        # Determine output file path and create it
+        rel_path = file_path.relative_to(input_path)
+        if self.anonymize_filenames:
+            out_rel_path = self.anonymize_file_path(file_path, rel_path)
+        else:
+            out_rel_path = rel_path
+        out_file_path = output_path / out_rel_path
+        out_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Anonymize content
+        anon_content, content_mappings = self.anonymize_file_content(file_path)
+        with open(out_file_path, 'w', encoding='utf-8') as f:
+            f.write(anon_content)
+
+        # Add content mappings to unified mappings
+        # content_mappings is now a flat dict: token -> original
+        self.all_mappings['mappings'].update(content_mappings)
+        self.all_mappings['statistics']['processed_files'] += 1
+
+    def gather_files_to_process(self, input_path):
+        files_to_process = []
+        for root, dirs, files in os.walk(input_path):
+            root_path = Path(root)
+
+            # Filter out excluded directories
+            excluded_dirs = []
+            for d in dirs:
+                if self.should_exclude_dir(root_path / d):
+                    LOG.warning(f"Skipping directory (matches exclude pattern): {root_path / d}")
+                    excluded_dirs.append(d)
+            dirs[:] = [d for d in dirs if d not in excluded_dirs]
+
+            for file in files:
+                file_path = root_path / file
+                if self.should_process_file(file_path):
+                    files_to_process.append(file_path)
+        # Sort files by path length (shorter paths first)
+        # This ensures parent directories are processed before their children
+        files_to_process.sort(key=lambda p: (len(p.parts), str(p)))
+        return files_to_process
+
+    def anonymize_file_path(self, file_path, rel_path):
+        # Build the anonymized path by looking up parent and anonymizing the last part
+        parent_path = rel_path.parent
+        # Look up or build the anonymized parent path
+        if parent_path == Path('.'):
+            # Top-level file/directory
+            anonymized_parent = Path('.')
+        else:
+            # Build parent path from cached components
+            # Since we process shortest paths first, all parent components should be cached
+            anonymized_parts = []
+            current_path = ""
+
+            for part in parent_path.parts:
+                # Build the key for this path component
+                current_path = str(Path(current_path) / part) if current_path else part
+
+                if current_path in self.path_cache:
+                    # Use the cached anonymized version
+                    anonymized_parts = list(self.path_cache[current_path].parts)
+                else:
+                    # This directory component hasn't been seen yet (first file in this directory)
+                    # Anonymize this directory component
+                    anon_part, part_mappings = self.anonymize_filename(part, is_directory=True)
+                    self.all_mappings['mappings'].update(part_mappings)
+                    anonymized_parts.append(anon_part)
+                    # Cache the anonymized path
+                    self.path_cache[current_path] = Path(*anonymized_parts)
+
+            anonymized_parent = Path(*anonymized_parts) if anonymized_parts else Path('.')
+
+        # Anonymize the last component (the actual file or final directory)
+        last_part = rel_path.name
+        is_file = file_path.is_file()
+        anonymized_last, last_mappings = self.anonymize_filename(last_part, is_directory=not is_file)
+        self.all_mappings['mappings'].update(last_mappings)
+
+        # Build the complete anonymized path
+        if anonymized_parent == Path('.'):
+            out_rel_path = Path(anonymized_last)
+        else:
+            out_rel_path = anonymized_parent / anonymized_last
+
+        # Cache this complete path
+        self.path_cache[str(rel_path)] = out_rel_path
+
+        return out_rel_path
+
     def create_report(self, output_path: Path):
         """Create a summary report of the anonymization.
-        
+
         Args:
             output_path: Path where output was written
         """
         report_path = output_path / 'anonymization_report.txt'
-        
+
         with open(report_path, 'w') as f:
             f.write("Anonymization Report\n")
             f.write("=" * 50 + "\n\n")
-            
+
             stats = self.all_mappings['statistics']
             f.write(f"Total files found: {stats['total_files']}\n")
             f.write(f"Files processed: {stats['processed_files']}\n")
             f.write(f"Files skipped: {stats['skipped_files']}\n")
-            
+
             if stats['errors']:
                 f.write(f"\nErrors encountered: {len(stats['errors'])}\n")
                 for error in stats['errors'][:10]:  # Show first 10 errors
                     f.write(f"  - {error['file']}: {error['error']}\n")
-                    
+
             f.write("\n" + "=" * 50 + "\n")
-            f.write("Anonymization types applied:\n")
-            
-            # Count anonymization types
+            f.write("Anonymization summary:\n")
+
+            # Count anonymization replacements by type (PERSON, EMAIL, etc.)
             type_counts = {}
-            for mappings in self.all_mappings['content_mappings'].values():
-                for pattern_type in mappings.keys():
-                    type_counts[pattern_type] = type_counts.get(pattern_type, 0) + len(mappings[pattern_type])
-                    
-            for pattern_type, count in type_counts.items():
-                f.write(f"  - {pattern_type}: {count} replacements\n")
-                
+            for token, original in self.all_mappings['mappings'].items():
+                # Extract type from token (e.g., REDACTED_PERSON1 -> PERSON)
+                if token.startswith('REDACTED_'):
+                    # Extract the type part (everything between REDACTED_ and the number)
+                    import re
+                    match = re.match(r'REDACTED_([A-Z]+)\d*', token)
+                    if match:
+                        pii_type = match.group(1)
+                        type_counts[pii_type] = type_counts.get(pii_type, 0) + 1
+
+            for pii_type, count in sorted(type_counts.items()):
+                f.write(f"  - {pii_type}: {count} unique replacements\n")
+
         LOG.info(f"Report saved to {report_path}")

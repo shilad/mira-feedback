@@ -82,6 +82,42 @@ Features:
 
 ## Available Tools
 
+### Grading Feedback Tool
+Automated grading system using OpenAI for evaluating student submissions against rubrics.
+
+#### Single Submission Grading
+```bash
+# Grade one submission
+grade-submission --submission-dir hw/student1/ --rubric rubric.md
+
+# Specify output file and model
+grade-submission -s hw/student1/ -r rubric.md -o feedback.yaml --model gpt-4
+```
+
+#### Batch Grading (New)
+```bash
+# Grade all submissions in parallel
+grade-batch --submissions-dir hw/submissions/ --rubric rubric.md
+
+# Use more threads for faster processing
+grade-batch -s hw/submissions/ -r rubric.md --max-threads 8
+
+# Save summary to specific location
+grade-batch -s hw/submissions/ -r rubric.md --summary grading_results.yaml
+
+# Continue even if some submissions fail
+grade-batch -s hw/submissions/ -r rubric.md --continue-on-error
+```
+
+#### Key Features:
+- **Parallel Processing**: Batch grader uses async/await for concurrent grading
+- **Smart File Selection**: Automatically selects relevant files for large submissions
+- **Progress Tracking**: Real-time progress bars with tqdm
+- **Structured Output**: Generates YAML feedback files with detailed component scores
+- **Rubric Parsing**: Supports markdown tables with criteria and point values
+- **Error Handling**: Graceful failure handling with detailed error reporting
+- **Summary Reports**: Aggregated statistics and score distributions
+
 ### Moodle Submission Preparation Tool
 Prepares Moodle homework submissions for anonymized feedback through a three-stage processing pipeline.
 
@@ -205,6 +241,9 @@ pytest tests/test_moodle_integration.py -v
 
 # Run tests for local anonymizer
 pytest tests/test_local_anonymizer.py -v
+pytest tests/test_grading_feedback.py -v
+pytest tests/test_batch_grader.py -v
+pytest tests/test_submission_utils.py -v
 
 # Run only integration tests (API tests)
 pytest -m "integration_test"

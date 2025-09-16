@@ -56,25 +56,25 @@ class LocalAnonymizer:
         
         LOG.info(f"LocalAnonymizer initialized with model: {self.model_name}, max_input_tokens: {max_input_tokens}")
     
-    def anonymize_data(self, text: str) -> Tuple[str, Dict[str, Dict[str, str]]]:
+    def anonymize_data(self, text: str) -> Tuple[str, Dict[str, str]]:
         """Anonymize PII in text.
-        
+
         Args:
             text: Text to anonymize
-            
+
         Returns:
             Tuple of (anonymized_text, mappings)
-            where mappings is a dict with PII categories as keys
+            where mappings is a flat dict of token -> original
         """
         if not text:
             return text, {}
-        
+
         # Note: We don't reset counters or memory here anymore
         # Use reset() method to clear state for independent runs
-        
+
         # Detect PII using LLM
         pii_data = self.llm.detect_pii(text, self.system_prompt)
-        
+
         # Also detect common patterns with regex for reliability
         regex_pii = self._detect_regex_patterns(text)
 
@@ -82,16 +82,14 @@ class LocalAnonymizer:
         pii_data = self._merge_pii_data(pii_data, regex_pii)
 
         # Generate replacements and create mappings
-        mappings = {}
+        mappings = {}  # Flat dict: token -> original
         anonymized_text = text
-        
+
         # Process each PII category
         for category, entities in pii_data.items():
             if not entities:
                 continue
 
-            category_mappings = {}
-            
             for entity in entities:
                 if entity not in anonymized_text:
                     continue
@@ -107,13 +105,10 @@ class LocalAnonymizer:
 
                 # Replace all occurrences
                 anonymized_text = anonymized_text.replace(entity, replacement)
-                
-                # Store mapping
-                category_mappings[entity] = replacement
 
-            if category_mappings:
-                mappings[category] = category_mappings
-        
+                # Store mapping as replacement -> original (flat structure)
+                mappings[replacement] = entity
+
         return anonymized_text, mappings
     
     def reset(self) -> None:

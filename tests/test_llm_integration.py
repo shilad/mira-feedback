@@ -20,13 +20,14 @@ def _get_gpt5_mini_agent():
 class TestCreateAgentIntegration:
     """Integration tests for create_agent that use the actual OpenAI API."""
 
-    def test_create_and_run_simple_agent(self):
+    @pytest.mark.asyncio
+    async def test_create_and_run_simple_agent(self):
         """Test creating an agent and running a simple query."""
         # Create agent with default config
         agent = _get_gpt5_mini_agent()
 
         # Run a simple query
-        result = asyncio.run(agent.run("What is 2 + 2?"))
+        result = await agent.run("What is 2 + 2?")
 
         # Check that we got a response
         assert result is not None
@@ -40,7 +41,8 @@ class TestCreateAgentIntegration:
         # The response should contain "4"
         assert "4" in response_text.lower()
 
-    def test_create_agent_with_system_prompt(self):
+    @pytest.mark.asyncio
+    async def test_create_agent_with_system_prompt(self):
         """Test agent with custom system prompt."""
         # Create agent with custom prompt
         agent = create_agent(
@@ -50,7 +52,7 @@ class TestCreateAgentIntegration:
         )
 
         # Run a query
-        result = asyncio.run(agent.run("Hello, how are you?"))
+        result = await agent.run("Hello, how are you?")
 
         # Check that we got a response
         assert result is not None
@@ -66,7 +68,8 @@ class TestCreateAgentIntegration:
         assert any(word in response_text.lower() for word in pirate_words), \
             f"Expected pirate speak but got: {response_text}"
 
-    def test_create_agent_with_json_response(self):
+    @pytest.mark.asyncio
+    async def test_create_agent_with_json_response(self):
         """Test agent returning structured JSON response."""
         # Create agent
         agent = create_agent(
@@ -84,7 +87,7 @@ class TestCreateAgentIntegration:
         }
         Return ONLY valid JSON, no other text."""
 
-        result = asyncio.run(agent.run(prompt))
+        result = await agent.run(prompt)
 
         # Check that we got a response
         assert result is not None
@@ -133,7 +136,8 @@ class TestCreateAgentIntegration:
         for result in results:
             assert result is not None
 
-    def test_create_agent_handles_error_gracefully(self):
+    @pytest.mark.asyncio
+    async def test_create_agent_handles_error_gracefully(self):
         """Test that agent handles API errors gracefully."""
         # Create agent with invalid model name
         agent = create_agent(
@@ -143,7 +147,7 @@ class TestCreateAgentIntegration:
 
         # Try to run a query
         try:
-            result = asyncio.run(agent.run("Hello"))
+            result = await agent.run("Hello")
             # If we get here, check if error is in result
             if hasattr(result, 'output'):
                 response_text = str(result.output)
@@ -158,7 +162,8 @@ class TestCreateAgentIntegration:
             # Expected to raise an exception for invalid model
             ...
 
-    def test_grading_agent_integration(self):
+    @pytest.mark.asyncio
+    async def test_grading_agent_integration(self):
         """Test the grading agent wrapper function."""
         from shilads_helpers.tools.grading_feedback.grader import create_grading_agent
 
@@ -179,7 +184,7 @@ class TestCreateAgentIntegration:
 
         Return a score from 0 to 1."""
 
-        result = asyncio.run(agent.run(prompt))
+        result = await agent.run(prompt)
 
         # Check that we got a response
         assert result is not None

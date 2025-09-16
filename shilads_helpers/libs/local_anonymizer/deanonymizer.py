@@ -13,30 +13,25 @@ class LocalDeanonymizer:
         """Initialize the deanonymizer."""
         pass
     
-    def deanonymize(self, text: str, mappings: Dict[str, Any]) -> str:
+    def deanonymize(self, text: str, mappings: Dict[str, str]) -> str:
         """Restore original content from anonymized text.
-        
+
         Args:
             text: Anonymized text
-            mappings: Dictionary mapping categories to {anonymized: original} pairs
-            
+            mappings: Flat dictionary mapping redacted tokens to original values
+                     Format: {redacted_token: original_value}
+                     Example: {"REDACTED_EMAIL1": "john@example.com"}
+
         Returns:
             Original text with PII restored
         """
         if not text or not mappings:
             return text
-        
+
         restored_text = text
-        
-        # Process each category of mappings
-        for category, replacements in mappings.items():
-            if not isinstance(replacements, dict):
-                continue
-                
-            # Replace each anonymized value with its original
-            for original, anonymized in replacements.items():
-                # The mappings are stored as {original: anonymized}
-                # So we need to reverse the replacement
-                restored_text = restored_text.replace(anonymized, original)
-        
+
+        # Simple flat format: directly replace each redacted token with its original value
+        for redacted_token, original_value in mappings.items():
+            restored_text = restored_text.replace(redacted_token, original_value)
+
         return restored_text

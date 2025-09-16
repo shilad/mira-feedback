@@ -75,7 +75,7 @@ class TestMoodleIntegration:
             mock_instance = mock_anon.return_value
             
             # Create the output directory that DirectoryAnonymizer would create
-            def mock_process(input_dir, output_dir, dry_run):
+            def mock_process(input_dir, output_dir):
                 Path(output_dir).mkdir(parents=True, exist_ok=True)
                 return {'statistics': {'processed_files': 5, 'errors': []}}
             

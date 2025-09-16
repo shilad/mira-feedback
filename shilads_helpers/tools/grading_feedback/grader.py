@@ -130,7 +130,8 @@ class SubmissionGrader:
             return self._create_basic_result(rubric_criteria, response_text)
 
         except Exception as e:
-            LOG.error(f"Error during grading: {e}")
+            import traceback
+            LOG.error(f"Error during grading: {e}: " + traceback.format_exc())
             # Return a default result on error
             return self._create_error_result(rubric_criteria, str(e))
 
@@ -274,8 +275,9 @@ RUBRIC CRITERIA:
 INSTRUCTIONS:
 1. Evaluate the submission against each criterion
 2. Assign a score from 0 to the maximum points for each criterion
-3. Provide specific, constructive feedback for each component
+3. Provide specific, constructive feedback when a criterion is not fully met
 4. Write an overall comment summarizing the student's performance
+5. All comments should be very brief.
 
 Return your evaluation as a JSON object with this structure:
 {{
@@ -325,3 +327,63 @@ STUDENT SUBMISSION:
             components=components,
             comment=f"Grading error occurred: {error_msg}"
         )
+
+    def grade_submission_directory(self, submission_dir: Path, rubric_criteria: List[RubricCriterion]) -> GradingResult:
+        """
+        Grade all files in a submission directory.
+
+        This method handles the complete workflow of:
+        1. Finding submission files
+        2. Selecting relevant files if submission is large
+        3. Building submission content
+        4. Grading the submission
+
+        Args:
+            submission_dir: Path to the submission directory
+            rubric_criteria: List of rubric criteria to evaluate against
+
+        Returns:
+            GradingResult with scores and feedback
+        """
+        from .submission_utils import (
+            find_all_submission_files,
+            create_submission_summary,
+            build_submission_content,
+            select_files_to_grade,
+            SIZE_THRESHOLD
+        )
+
+        # Find all submission files
+        submission_files = find_all_submission_files(submission_dir)
+        if not submission_files:
+            LOG.warning(f"No submission files found in {submission_dir}")
+            return self._create_error_result(rubric_criteria, "No submission files found")
+
+        total_size = sum(size for _, size in submission_files)
+        LOG.info(f"Found {len(submission_files)} files (total size: {total_size:,} bytes)")
+
+        # Determine which files to grade
+        if total_size > SIZE_THRESHOLD:
+            LOG.info(f"Large submission detected ({total_size:,} bytes > {SIZE_THRESHOLD:,} bytes)")
+            LOG.info("Using two-pass approach to select relevant files...")
+
+            # Create submission summary and ask LLM which files to review
+            summary = create_submission_summary(submission_dir, submission_files)
+
+            try:
+                selected_filenames = self.select_files_for_review(summary, rubric_criteria)
+                files_to_grade = select_files_to_grade(submission_files, selected_filenames)
+                LOG.info(f"LLM selected {len(files_to_grade)} files for review")
+            except Exception as e:
+                LOG.warning(f"File selection failed, using all files: {e}")
+                files_to_grade = submission_files
+        else:
+            # Use all files for small submissions
+            files_to_grade = submission_files
+
+        # Build submission content from selected files
+        submission_content = build_submission_content(submission_dir, files_to_grade)
+        LOG.info(f"Combined submission content: {len(submission_content)} characters")
+
+        # Grade the submission
+        return self.grade(submission_content, rubric_criteria)

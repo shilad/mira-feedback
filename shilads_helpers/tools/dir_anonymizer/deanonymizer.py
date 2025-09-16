@@ -10,15 +10,6 @@ from tqdm import tqdm
 
 # Config not needed in deanonymizer - it only uses mappings
 
-# Import both deanonymizer backends
-try:
-    from anonLLM.deanonymizer import Deanonymizer as AnonLLMDeanonymizer
-    ANONLLM_AVAILABLE = True
-except ImportError:
-    ANONLLM_AVAILABLE = False
-    
-from shilads_helpers.libs.local_anonymizer import LocalDeanonymizer
-
 logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
 
@@ -39,42 +30,35 @@ class DirectoryDeanonymizer:
             
         with open(self.mapping_file, 'r') as f:
             self.mappings = json.load(f)
-            
-        # Check if there's a backend indicator in mappings (for future use)
-        # For now, try to use LocalDeanonymizer as it's compatible with both formats
-        self.deanonymizer = LocalDeanonymizer()
         
-    def deanonymize_content(self, content: str, content_mappings: Dict[str, Any]) -> str:
-        """Restore original content using mappings.
-        
-        Args:
-            content: Anonymized content
-            content_mappings: Mappings for this specific content
-            
-        Returns:
-            Original content
-        """
-        return self.deanonymizer.deanonymize(content, content_mappings)
         
     def get_original_path(self, anonymized_path: str) -> str:
         """Get the original file path from an anonymized path.
-        
+
         Args:
             anonymized_path: The anonymized file path
-            
+
         Returns:
             Original file path
         """
-        # If filenames were anonymized, reverse the mapping
-        file_mappings = self.mappings.get('files', {})
-        
-        # Create reverse mapping
-        reverse_mappings = {v: k for k, v in file_mappings.items()}
-        
-        # Try to find original path
-        if anonymized_path in reverse_mappings:
-            return reverse_mappings[anonymized_path]
-            
+        # Check if we have the new unified mappings format
+        if 'mappings' in self.mappings:
+            # New format: use string substitution
+            original_path = anonymized_path
+            # Apply reverse mappings (redacted -> original)
+            for redacted, original in self.mappings['mappings'].items():
+                original_path = original_path.replace(redacted, original)
+            return original_path
+
+        # Legacy format: use literal file mappings
+        elif 'files' in self.mappings:
+            file_mappings = self.mappings.get('files', {})
+            # Create reverse mapping
+            reverse_mappings = {v: k for k, v in file_mappings.items()}
+            # Try to find original path
+            if anonymized_path in reverse_mappings:
+                return reverse_mappings[anonymized_path]
+
         # If not found in mappings, might be unchanged
         return anonymized_path
         
@@ -105,12 +89,21 @@ class DirectoryDeanonymizer:
             'errors': []
         }
         
-        # Get content mappings
-        content_mappings = self.mappings.get('content_mappings', {})
-        file_mappings = self.mappings.get('files', {})
-        
-        # Create reverse file mapping
-        reverse_file_mappings = {v: k for k, v in file_mappings.items()}
+        # Check mapping format
+        is_unified = 'mappings' in self.mappings
+
+        # Get mappings based on format
+        if is_unified:
+            # New unified format
+            unified_mappings = self.mappings.get('mappings', {})
+            file_mappings = {}
+            reverse_file_mappings = {}
+        else:
+            # Legacy format
+            unified_mappings = {}
+            file_mappings = self.mappings.get('files', {})
+            # Create reverse file mapping for legacy format
+            reverse_file_mappings = {v: k for k, v in file_mappings.items()}
         
         # Collect all files to process
         files_to_process = []
@@ -133,38 +126,59 @@ class DirectoryDeanonymizer:
                     rel_path_str = str(rel_path)
                     
                     # Determine original path
-                    if restore_filenames and rel_path_str in reverse_file_mappings:
-                        original_rel_path = Path(reverse_file_mappings[rel_path_str])
-                    else:
-                        # Try to find by checking all mappings
-                        original_rel_path = None
-                        for orig, anon in file_mappings.items():
-                            if anon == rel_path_str:
-                                original_rel_path = Path(orig)
-                                break
-                        
-                        if original_rel_path is None:
-                            # Assume path wasn't changed
+                    if is_unified:
+                        # Use string substitution for unified format
+                        if restore_filenames:
+                            original_path_str = str(rel_path)
+                            # Apply reverse mappings
+                            for redacted, original in unified_mappings.items():
+                                original_path_str = original_path_str.replace(redacted, original)
+                            original_rel_path = Path(original_path_str)
+                        else:
                             original_rel_path = rel_path
+                    else:
+                        # Legacy format - use literal mappings
+                        if restore_filenames and rel_path_str in reverse_file_mappings:
+                            original_rel_path = Path(reverse_file_mappings[rel_path_str])
+                        else:
+                            # Try to find by checking all mappings
+                            original_rel_path = None
+                            for orig, anon in file_mappings.items():
+                                if anon == rel_path_str:
+                                    original_rel_path = Path(orig)
+                                    break
+
+                            if original_rel_path is None:
+                                # Assume path wasn't changed
+                                original_rel_path = rel_path
                             
                     # Read anonymized content
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         anon_content = f.read()
                         
-                    # Get content mappings for this file
-                    # Try to find the original file key in content_mappings
-                    file_content_mappings = None
-                    for key in content_mappings.keys():
-                        if Path(key) == original_rel_path or key == str(original_rel_path):
-                            file_content_mappings = content_mappings[key]
-                            break
-                            
-                    # Restore content
-                    if file_content_mappings:
-                        restored_content = self.deanonymize_content(anon_content, file_content_mappings)
+                    # Restore content using string substitution
+                    restored_content = anon_content
+
+                    if is_unified:
+                        # Use unified mappings for content restoration
+                        # Apply reverse mappings (token -> original)
+                        for redacted, original in unified_mappings.items():
+                            restored_content = restored_content.replace(redacted, original)
                     else:
-                        # No mappings found, content might not have been anonymized
-                        restored_content = anon_content
+                        # Legacy format - try to extract mappings from content_mappings
+                        # This maintains backward compatibility
+                        content_mappings = self.mappings.get('content_mappings', {})
+                        if content_mappings:
+                            # Look for mappings for this specific file
+                            for key in content_mappings.keys():
+                                if Path(key) == original_rel_path or key == str(original_rel_path):
+                                    file_content_mappings = content_mappings[key]
+                                    # Apply the file-specific mappings
+                                    for category, cat_mappings in file_content_mappings.items():
+                                        if isinstance(cat_mappings, dict):
+                                            for orig, redacted in cat_mappings.items():
+                                                restored_content = restored_content.replace(redacted, orig)
+                                    break
                         
                     # Write restored file
                     out_file_path = out_path / original_rel_path

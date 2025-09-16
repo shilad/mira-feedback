@@ -166,21 +166,116 @@ class TestMoodleProcessor:
         assert (work_dir / '1_prep').exists()
 
 
+    def test_online_text_to_moodle_comments(self, tmp_path):
+        """Test that online text submissions create moodle_comments.txt files."""
+        # Create test files
+        zip_path = tmp_path / "test.zip"
+        work_dir = tmp_path / "work"
+
+        # Create test zip with both file and online text submissions
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            # File submission
+            zf.writestr("John Doe_12345_assignsubmission_file/homework.py", "print('Hello World')")
+
+            # Online text submission with HTML
+            online_html = "<p>This is my <strong>online submission</strong>.</p><p>It has multiple paragraphs.</p>"
+            zf.writestr("Jane Smith_67890_assignsubmission_onlinetext/onlinetext.html", online_html)
+
+            # Another online text submission with plain text
+            zf.writestr("Bob Johnson_11111_assignsubmission_onlinetext/onlinetext.txt", "Plain text submission content")
+
+        # Run processor through stages 0 and 1
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
+
+        # Mock the DirectoryAnonymizer to avoid dependency issues
+        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+            # Process only stages 0 and 1
+            results = processor.process(zip_path, skip_stages={'2_redacted'})
+
+        # Check stage 1_prep for moodle_comments.txt files
+        stage1_dir = work_dir / '1_prep'
+
+        # John Doe should have his file submission but no moodle_comments.txt
+        john_dir = stage1_dir / "John Doe_12345_assignsubmission_file"
+        assert john_dir.exists()
+        assert (john_dir / "homework.py").exists()
+        assert not (john_dir / "moodle_comments.txt").exists()
+
+        # Jane Smith's online text should NOT have a directory (removed in stage 0)
+        # But should have moodle_comments.txt in any existing directory for her
+        jane_dir = stage1_dir / "Jane Smith_67890_assignsubmission_onlinetext"
+        assert not jane_dir.exists()
+
+        # Bob Johnson's online text should also not have a directory
+        bob_dir = stage1_dir / "Bob Johnson_11111_assignsubmission_onlinetext"
+        assert not bob_dir.exists()
+
+        # Check that moodle_grades.csv was created and contains all students
+        grades_file = stage1_dir / "moodle_grades.csv"
+        assert grades_file.exists()
+
+        with open(grades_file, 'r') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            assert len(rows) == 3  # All three students should be in the CSV
+
+            # Find Jane's entry and verify online text is captured (truncated)
+            jane_row = next((r for r in rows if 'Jane Smith' in r.get('Full name', '')), None)
+            assert jane_row is not None
+            assert "online submission" in jane_row.get('Online text', '')
+
+    def test_online_text_with_file_submission(self, tmp_path):
+        """Test when a student has both file and online text submission."""
+        # Create test files
+        zip_path = tmp_path / "test.zip"
+        work_dir = tmp_path / "work"
+
+        # Create test zip with a student who has both submissions
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            # File submission for the same student
+            zf.writestr("Alice Brown_99999_assignsubmission_file/project.py", "def main(): pass")
+            # Online text submission for the same student
+            zf.writestr("Alice Brown_99999_assignsubmission_onlinetext/onlinetext.html",
+                       "<p>Here are my comments about the project</p>")
+
+        # Run processor
+        config = get_test_config()
+        processor = MoodleProcessor(config, work_dir)
+
+        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+            results = processor.process(zip_path, skip_stages={'2_redacted'})
+
+        # Check that Alice has her file submission directory
+        stage1_dir = work_dir / '1_prep'
+        alice_dir = stage1_dir / "Alice Brown_99999_assignsubmission_file"
+        assert alice_dir.exists()
+        assert (alice_dir / "project.py").exists()
+
+        # And she should have moodle_comments.txt with her online text
+        comments_file = alice_dir / "moodle_comments.txt"
+        assert comments_file.exists()
+
+        # Verify content (should be converted from HTML to Markdown)
+        content = comments_file.read_text()
+        assert "comments about the project" in content
+
+
 class TestCLI:
     """Test CLI functionality."""
-    
+
     def test_cli_import(self):
         """Test that CLI can be imported."""
         from shilads_helpers.tools.moodle_prep import cli
         assert hasattr(cli, 'main')
-    
+
     @patch('sys.argv', ['prep-moodle', '--help'])
     def test_cli_help(self):
         """Test CLI help message."""
         from shilads_helpers.tools.moodle_prep.cli import main
-        
+
         with pytest.raises(SystemExit) as exc_info:
             main()
-        
+
         # Help should exit with 0
         assert exc_info.value.code == 0

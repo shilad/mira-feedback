@@ -32,9 +32,6 @@ def anonymize_command(args):
         if args.output_dir:
             LOG.info(f"Output directory: {args.output_dir}")
             
-        if args.dry_run:
-            LOG.info("Running in DRY RUN mode - no files will be written")
-            
         if args.keep_original_filenames:
             LOG.info("Keeping original filenames (not anonymizing)")
         else:
@@ -42,8 +39,7 @@ def anonymize_command(args):
             
         results = anonymizer.process_directory(
             input_dir=args.input_dir,
-            output_dir=args.output_dir,
-            dry_run=args.dry_run
+            output_dir=args.output_dir
         )
         
         stats = results['statistics']
@@ -122,11 +118,6 @@ def main():
         help='Output directory for anonymized files'
     )
     anon_parser.add_argument(
-        '-d', '--dry-run',
-        action='store_true',
-        help='Show what would be done without actually doing it'
-    )
-    anon_parser.add_argument(
         '--keep-original-filenames',
         action='store_true',
         help='Keep original filenames instead of anonymizing them (default: anonymize filenames)'
@@ -146,9 +137,8 @@ def main():
         help='Where to write restored files'
     )
     deanon_parser.add_argument(
-        '-m', '--mapping-file',
-        default='anonymization_mapping.json',
-        help='Path to mapping file (default: anonymization_mapping.json)'
+        'mapping_file',
+        help='Path to mapping file containing the anonymization mappings'
     )
     deanon_parser.add_argument(
         '-k', '--keep-anonymized-names',

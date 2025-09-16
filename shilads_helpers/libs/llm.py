@@ -1,5 +1,7 @@
 """LLM utilities for creating and configuring AI agents."""
 
+
+import logging
 import os
 from typing import Optional, Dict, Any
 
@@ -7,6 +9,11 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
 from shilads_helpers.libs.config_loader import ConfigType, get_config
+
+
+# Fix up logging level for httpx to WARNING to reduce noise
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 
 def create_agent(configs: ConfigType,
@@ -44,11 +51,13 @@ def create_agent(configs: ConfigType,
         agent = Agent(
             model=openai_model,
             model_settings=model_settings,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            retries=0,
         )
     else:
         agent = Agent(
             model=openai_model,
-            model_settings=model_settings
+            model_settings=model_settings,
+            retries=0,
         )
     return agent

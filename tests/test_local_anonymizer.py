@@ -209,29 +209,53 @@ class TestLocalDeanonymizer:
     
     def test_basic_deanonymization(self, mock_llm_backend):
         """Test basic deanonymization."""
+        # Configure mock to detect PII
+        mock_llm_backend.detect_pii.return_value = {
+            "persons": [],
+            "emails": ["john@example.com"],
+            "phones": ["555-123-4567"],
+            "addresses": [],
+            "organizations": [],
+            "credit_cards": [],
+            "ssn": []
+        }
+
         anonymizer = LocalAnonymizer()
+        anonymizer.llm_backend = mock_llm_backend
         deanonymizer = LocalDeanonymizer()
-        
+
         original = "Contact john@example.com or call 555-123-4567"
         anon_text, mappings = anonymizer.anonymize_data(original)
         restored = deanonymizer.deanonymize(anon_text, mappings)
-        
+
         assert restored == original
         
     def test_complex_deanonymization(self, mock_llm_backend):
         """Test deanonymization with multiple occurrences."""
+        # Configure mock to detect PII
+        mock_llm_backend.detect_pii.return_value = {
+            "persons": [],
+            "emails": ["john@example.com", "jane@example.com"],
+            "phones": [],
+            "addresses": [],
+            "organizations": [],
+            "credit_cards": [],
+            "ssn": []
+        }
+
         anonymizer = LocalAnonymizer()
+        anonymizer.llm_backend = mock_llm_backend
         deanonymizer = LocalDeanonymizer()
-        
+
         original = """
         John's email is john@example.com.
         Contact john@example.com for details.
         Alternative: jane@example.com
         """
-        
+
         anon_text, mappings = anonymizer.anonymize_data(original)
         restored = deanonymizer.deanonymize(anon_text, mappings)
-        
+
         assert restored == original
 
 
@@ -250,8 +274,7 @@ class TestDirectoryAnonymization:
             # Process directory
             results = anonymizer.process_directory(
                 input_dir=temp_test_dir,
-                output_dir=output_dir,
-                dry_run=False
+                output_dir=output_dir
             )
             
             # Check that files were processed
@@ -295,8 +318,7 @@ class TestDirectoryAnonymization:
             anonymizer = DirectoryAnonymizer(config=config, anonymize_filenames=False)
             results = anonymizer.process_directory(
                 input_dir=temp_test_dir,
-                output_dir=anon_dir,
-                dry_run=False
+                output_dir=anon_dir
             )
             
             # Check mapping file was created in output directory
@@ -324,30 +346,6 @@ class TestDirectoryAnonymization:
             shutil.rmtree(anon_dir, ignore_errors=True)
             shutil.rmtree(restored_dir, ignore_errors=True)
     
-    def test_dry_run(self, temp_test_dir, mock_llm_backend):
-        """Test dry run mode."""
-        output_dir = tempfile.mkdtemp()
-        
-        try:
-            config = get_test_config()
-            anonymizer = DirectoryAnonymizer(config=config)
-            
-            # Process with dry_run
-            results = anonymizer.process_directory(
-                input_dir=temp_test_dir,
-                output_dir=output_dir,
-                dry_run=True
-            )
-            
-            # Check that statistics were collected
-            assert results['statistics']['total_files'] > 0
-            
-            # But no files should be written
-            output_files = list(Path(output_dir).rglob('*'))
-            assert len(output_files) == 0
-            
-        finally:
-            shutil.rmtree(output_dir, ignore_errors=True)
     
     def test_file_type_filtering(self, temp_test_dir, mock_llm_backend):
         """Test that only configured file types are processed."""
@@ -375,8 +373,7 @@ class TestDirectoryAnonymization:
             anonymizer = DirectoryAnonymizer(config=custom_config)
             results = anonymizer.process_directory(
                 input_dir=temp_test_dir,
-                output_dir=output_dir,
-                dry_run=False
+                output_dir=output_dir
             )
             
             # Only .md files should be processed
