@@ -9,18 +9,23 @@ This is a collection of Python utilities and scripts for academic (Macalester CS
 ## Common Commands
 
 ### Grading Commands
+**Note:** For a complete step-by-step grading workflow, see the [Grading Workflow section in README.md](README.md#grading-workflow).
+
+**IMPORTANT:** Always use the `2_redacted` directory when grading to protect student privacy. Never grade from `0_submitted` or `1_prep` directories.
+
+#### Quick Reference
 ```bash
-# Grade a single submission
-grade-submission --submission-dir hw/student1/ --rubric rubric.md
+# Grade a single submission (from redacted directory)
+grade-submission --submission-dir hw/2_redacted/REDACTED_PERSON1_ID/ --rubric rubric.md
 
-# Grade all submissions in parallel (new batch grader)
-grade-batch --submissions-dir hw/submissions/ --rubric rubric.md
+# Grade all submissions in parallel (ALWAYS use 2_redacted)
+grade-batch --submissions-dir hw/2_redacted/ --rubric rubric.md
 
-# Batch grade with custom settings
-grade-batch -s hw/submissions/ -r rubric.md --max-threads 8 --model gpt-4
+# Batch grade with custom settings (from redacted directory)
+grade-batch -s hw/2_redacted/ -r rubric.md --max-threads 8 --model gpt-4
 
 # Save summary to specific location
-grade-batch -s hw/submissions/ -r rubric.md --summary grading_results.yaml
+grade-batch -s hw/2_redacted/ -r rubric.md --summary grading_results.yaml
 ```
 
 ### Development Setup

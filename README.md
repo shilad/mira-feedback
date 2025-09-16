@@ -215,6 +215,123 @@ anonymize-dir accuracy -t /path/to/test/yaml/files
   - Maximum tokens per chunk (for large file handling)
   - Device selection (cpu/cuda/mps)
 
+## Grading Workflow
+
+This section describes a complete workflow for grading student submissions downloaded from Moodle.
+
+### Step 1: Prepare Submissions from Moodle
+First, extract and organize the downloaded Moodle zip file:
+
+```bash
+# Extract submissions into organized directories
+prep-moodle --zip downloaded_submissions.zip --workdir ./grading_workspace/
+
+# This creates:
+# - 0_submitted/: Raw file submissions
+# - 1_prep/: HTML converted to Markdown with moodle_grades.csv
+# - 2_redacted/: Anonymized submissions (optional, can skip with --skip-stage)
+```
+
+### Step 2: Gather Assignment Context
+Before creating a rubric, collect:
+1. The original assignment instructions
+2. Any specific requirements or constraints
+3. Expected deliverables and their format
+
+### Step 3: Develop the Grading Rubric
+Create a `rubric.md` file with clear criteria. The rubric should use a markdown table format:
+
+```markdown
+# Assignment Rubric
+
+| Criteria | Points | Description |
+|----------|--------|-------------|
+| Code Functionality | 40 | Program runs correctly and produces expected output |
+| Code Quality | 20 | Clean, readable code with proper structure |
+| Documentation | 15 | Clear comments and docstrings |
+| Testing | 15 | Includes appropriate test cases |
+| Style | 10 | Follows language conventions and best practices |
+```
+
+Tips for effective rubrics:
+- Be specific about what constitutes full vs. partial credit
+- Include both objective (functionality) and subjective (quality) criteria
+- Consider common mistakes you've seen in sample submissions
+- Align point values with assignment emphasis
+
+### Step 4: Run Batch Grading
+Grade all submissions in parallel:
+
+```bash
+# IMPORTANT: Always grade from the 2_redacted directory to protect student privacy
+# Basic batch grading
+grade-batch --submissions-dir ./grading_workspace/2_redacted/ --rubric rubric.md
+
+# With custom settings
+grade-batch -s ./grading_workspace/2_redacted/ -r rubric.md \
+  --max-threads 8 \
+  --model gpt-4 \
+  --summary grading_summary.yaml
+```
+
+**Note:** Always use the `2_redacted` directory for grading to ensure student PII is protected. The grading tool should never access the original submissions in `0_submitted` or `1_prep`.
+
+### Step 5: Review and Analyze Results
+After grading:
+
+1. **Check the summary file** (`grading_summary.yaml`):
+   - Overall statistics and score distribution
+   - Common strengths and weaknesses
+   - Submissions that may need manual review
+
+2. **Review individual feedback** (in each submission directory):
+   - Each submission gets a `feedback.yaml` file
+   - Contains detailed scores and comments for each rubric criterion
+
+3. **Identify patterns**:
+   - Common misconceptions or errors
+   - Areas where many students excelled or struggled
+   - Potential improvements to assignment instructions
+
+4. **Manual review cases**:
+   - Unusually high or low scores
+   - Submissions with processing errors
+   - Edge cases not covered by rubric
+
+### Step 6: Refine and Iterate
+Based on patterns observed:
+- Adjust rubric criteria for clarity or fairness
+- Add specific examples to rubric descriptions
+- Consider partial credit guidelines for common errors
+- Update assignment instructions for next time
+
+### Complete Example Workflow
+
+```bash
+# 1. Prepare Moodle submissions
+prep-moodle --zip hw3_submissions.zip --workdir ./hw3_grading/
+
+# 2. Review a few submissions to understand the landscape
+ls ./hw3_grading/2_redacted/
+# Examine 2-3 submissions manually (use 2_redacted to protect privacy)
+
+# 3. Create rubric.md based on assignment requirements
+
+# 4. Run batch grading (ALWAYS use 2_redacted directory)
+grade-batch -s ./hw3_grading/2_redacted/ -r rubric.md \
+  --summary ./hw3_grading/summary.yaml \
+  --max-threads 10
+
+# 5. Review summary
+cat ./hw3_grading/summary.yaml
+
+# 6. Check specific feedback
+cat ./hw3_grading/2_redacted/REDACTED_PERSON1_ID_assignsubmission_file/feedback.yaml
+
+# 7. Update grades in the CSV (if needed)
+# The moodle_grades.csv in 2_redacted will contain anonymized results
+```
+
 ## Configuration
 
 The project uses a YAML-based configuration system. Settings are loaded from:
