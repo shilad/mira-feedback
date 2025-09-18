@@ -50,7 +50,8 @@ class MoodleGradesHandler:
                         self.name_to_token[original_name] = f"REDACTED_PERSON{self.person_counter}"
                     
                     new_row["Full name"] = self.name_to_token[original_name]
-                    mappings[original_name] = self.name_to_token[original_name]
+                    # Use token -> original mapping to match rest of codebase
+                    mappings[self.name_to_token[original_name]] = original_name
                 
                 # Anonymize "Email address" column if it exists
                 if "Email address" in row and row["Email address"]:
@@ -60,7 +61,8 @@ class MoodleGradesHandler:
                         self.email_to_token[original_email] = f"REDACTED_EMAIL{self.email_counter}"
                     
                     new_row["Email address"] = self.email_to_token[original_email]
-                    mappings[original_email] = self.email_to_token[original_email]
+                    # Use token -> original mapping to match rest of codebase
+                    mappings[self.email_to_token[original_email]] = original_email
                 
                 anonymized_rows.append(new_row)
             

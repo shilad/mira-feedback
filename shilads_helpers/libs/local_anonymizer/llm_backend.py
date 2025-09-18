@@ -6,8 +6,6 @@ from typing import Dict, List, Any, Optional
 import torch
 from transformers import pipeline
 
-from shilads_helpers.libs.text_chunker import chunk_text
-
 LOG = logging.getLogger(__name__)
 
 
@@ -16,16 +14,15 @@ class LLMBackend:
     
     def __init__(self, model_name: str = "Qwen/Qwen3-4B-Instruct-2507", device: str = "mps", max_input_tokens: int = 100):
         """Initialize the LLM backend.
-        
+
         Args:
             model_name: Hugging Face model name
             device: Device to run on ('cpu' or 'cuda')
-            max_input_tokens: Maximum tokens per chunk sent to LLM
+            max_input_tokens: Maximum tokens per chunk sent to LLM (used for safety check)
         """
         self.model_name = model_name
         self.device = device
         self.max_input_tokens = max_input_tokens
-        self.lookback_words = 5  # Number of words to overlap between chunks
 
         if self.device not in ("cpu", "cuda", "mps"):
             raise ValueError("Device must be 'cpu', 'cuda', or 'mps'")
@@ -50,66 +47,38 @@ class LLMBackend:
     
     def detect_pii(self, text: str, system_prompt: Optional[str] = None) -> Dict[str, List[str]]:
         """Detect PII in text using the LLM.
-        
+
         Args:
             text: Text to analyze for PII
             system_prompt: Optional custom system prompt
-            
+
         Returns:
             Dictionary with PII categories and detected entities
         """
         if system_prompt is None:
             system_prompt = self._get_default_prompt()
-        
+
+        # Safety check for overly long text
+        if self.num_tokens(text) > 5 * self.max_input_tokens:
+            LOG.warning("Text is > 5x max_input_tokens (%d tokens). Consider chunking at a higher level.", self.num_tokens(text))
+
         try:
-            # Check if text needs chunking
-            total_tokens = len(self.tokenizer.encode(text, add_special_tokens=False))
-            
-            if total_tokens <= self.max_input_tokens:
-                # Process as single chunk
-                return self._detect_pii_single_chunk(text, system_prompt)
-            else:
-                # Process in chunks
-                LOG.debug(f"Text has {total_tokens} tokens, chunking with max {self.max_input_tokens} tokens per chunk")
-                # Use the text_chunker utility
-                chunk_generator = chunk_text(
-                    text, 
-                    lambda t: self.num_tokens(t),
-                    self.max_input_tokens,
-                    self.lookback_words
-                )
-                chunks = list(chunk_generator)  # Convert to list for counting
-                LOG.debug(f"Split text into {len(chunks)} chunks")
-                
-                # Process each chunk
-                chunk_results = []
-                for i, chunk in enumerate(chunks):
-                    LOG.debug(f"Processing chunk {i+1}/{len(chunks)}")
-                    result = self._detect_pii_single_chunk(chunk, system_prompt)
-                    chunk_results.append(result)
-                
-                # Merge results
-                merged_results = self._merge_pii_results(chunk_results)
-                return merged_results
-                
+            return self._detect_pii_in_text(text, system_prompt)
         except Exception as e:
             LOG.error(f"Error detecting PII: {e}")
             # Return empty structure on error
             return {}
     
-    def _detect_pii_single_chunk(self, text: str, system_prompt: str) -> Dict[str, List[str]]:
-        """Detect PII in a single chunk of text.
-        
+    def _detect_pii_in_text(self, text: str, system_prompt: str) -> Dict[str, List[str]]:
+        """Detect PII in text.
+
         Args:
-            text: Text chunk to analyze
+            text: Text to analyze
             system_prompt: System prompt for PII detection
-            
+
         Returns:
             Dictionary with PII categories and detected entities
         """
-        if self.num_tokens(text) > 5 * self.max_input_tokens:
-            LOG.warning("Skipping overly long chunk of size > 5x max_input_tokens %d", self.num_tokens(text))
-            return {}
 
         # Construct the full prompt
         user_prompt = f"""Detect PII for the following content:\n\n<content>\n{text}\n</content>\n"""
@@ -195,40 +164,3 @@ If no PII exists for the category, the list should be empty.
                 "credit_cards": [],
                 "ssn": []
             }
-    
-    def _merge_pii_results(self, results: List[Dict[str, List[str]]]) -> Dict[str, List[str]]:
-        """Merge PII detection results from multiple chunks.
-        
-        Args:
-            results: List of PII detection results from chunks
-            
-        Returns:
-            Merged PII detection results with duplicates removed
-        """
-        merged = {
-            "persons": [],
-            "emails": [],
-            "phones": [],
-            "addresses": [],
-            "organizations": [],
-            "credit_cards": [],
-            "ssn": []
-        }
-        
-        for result in results:
-            for category, items in result.items():
-                if category in merged:
-                    # Use set to remove duplicates, then convert back to list
-                    merged[category].extend(items)
-        
-        # Remove duplicates while preserving order
-        for category in merged:
-            seen = set()
-            unique_items = []
-            for item in merged[category]:
-                if item not in seen:
-                    seen.add(item)
-                    unique_items.append(item)
-            merged[category] = unique_items
-        
-        return merged

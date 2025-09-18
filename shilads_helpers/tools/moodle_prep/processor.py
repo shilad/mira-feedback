@@ -221,37 +221,63 @@ class MoodleProcessor:
         """Stage 3: Redact PII content using DirectoryAnonymizer."""
         source_dir = self.stage_dirs['1_prep']
         stage_dir = self.stage_dirs['2_redacted']
-        
+
         if not source_dir.exists():
             LOG.error(f"Source directory {source_dir} does not exist. Run stage 2 first.")
             return
-        
+
         if not self.dry_run:
             # Use DirectoryAnonymizer to redact PII
             LOG.info("Running PII redaction...")
             anonymizer = DirectoryAnonymizer(config=self.config, anonymize_filenames=True)  # Anonymize filenames for full privacy
-            
+
             # Run anonymization
             results = anonymizer.process_directory(
                 input_dir=str(source_dir),
                 output_dir=str(stage_dir)
             )
-            
+
             # Update stats
             if 'statistics' in results:
                 self.stats['files_redacted'] = results['statistics'].get('processed_files', 0)
                 if results['statistics'].get('errors'):
                     self.stats['errors'].extend(results['statistics']['errors'])
-            
+
+            # Create .claude settings file to prevent reading sensitive directories
+            self._create_claude_settings()
+
         else:
             LOG.info("[DRY RUN] Would run PII redaction")
             # Count files for dry run
             file_count = sum(1 for _ in source_dir.rglob("*") if _.is_file())
             self.stats['files_redacted'] = file_count
     
+    def _create_claude_settings(self):
+        """Create .claude settings file to prevent Claude Code from reading sensitive directories."""
+        settings_file = self.working_dir / '.claude' / 'settings.json'
+
+        settings_content = """{
+  "permissions": {
+    "deny": [
+      "Read(./[0-13-9a-zA-Z]*/**)"
+    ],
+    "allow": [
+      "Read(./2_redacted/**)"
+    ]
+  }
+}
+
+"""
+        try:
+            settings_file.parent.mkdir(parents=True, exist_ok=True)
+            settings_file.write_text(settings_content, encoding='utf-8')
+            LOG.info(f"Created .claude settings file at {settings_file}")
+        except Exception as e:
+            LOG.warning(f"Could not create .claude settings file: {e}")
+
     def get_stage_info(self) -> Dict[str, Dict]:
         """Get information about each stage directory.
-        
+
         Returns:
             Dictionary with stage information
         """

@@ -120,15 +120,52 @@ anonymizer:
   
   # Local LLM model configuration
   local_model:
-    # Hugging Face model name
-#    name: "mistralai/Mistral-7B-Instruct-v0.3"
-    name: "Qwen/Qwen3-4B-Instruct-2507"
-#    name: "google/gemma-3-1b-it"
-#    name: "google/gemma-3-270m-it"
+    # Backend to use: 'llm' (Hugging Face LLM), 'openpipe' (OpenPipe PII models), or 'presidio' (Microsoft Presidio)
+    # backend: "openpipe"  # Using OpenPipe's specialized PII detection models
+    backend: "presidio"  # Fast rule-based detection with Presidio
 
-    # Device to run on: 'cpu' or 'cuda'
+    # Device to run on: 'cpu', 'cuda', or 'mps'
     device: "mps"
-    # Optional custom system prompt for PII detection
-    system_prompt: null
-    # Maximum tokens per chunk sent to LLM
-    max_input_tokens: 1000
+
+    # Chunking configuration
+    max_input_tokens: 1000  # Maximum tokens per chunk
+
+    # Presidio backend configuration
+    presidio:
+      # Analyzer settings
+      language: "en"  # Language code for analysis
+      confidence_threshold: 0.3  # Minimum confidence score (0.0-1.0)
+
+      # NLP Engine Provider configuration (passed directly to NlpEngineProvider)
+      nlp_configuration:
+        nlp_engine_name: "spacy"  # NLP engine to use
+        models:
+          - lang_code: "en"
+            model_name: "en_core_web_lg"
+        ner_model_configuration:
+          labels_to_ignore:
+            - O
+            - MONEY
+            - ORG
+            - GPE
+            - NORP
+            - DATE
+            - TIME
+            - PERCENT
+            - QUANTITY
+            - CARDINAL
+            - ORDINAL
+            - LAW
+            - EVENT
+            - PRODUCT
+            - WORK_OF_ART
+            - FAC
+            - LANGUAGE
+
+
+
+    # Settings for 'llm' backend (commented out since using openpipe)
+    # Hugging Face model name (only used when backend is 'llm')
+#    backend: "llm"  # Using OpenPipe's specialized PII detection models
+#    name: "Qwen/Qwen3-4B-Instruct-2507"
+#    system_prompt: null

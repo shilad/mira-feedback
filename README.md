@@ -85,6 +85,8 @@ Features:
 ### Grading Feedback Tool
 Automated grading system using OpenAI for evaluating student submissions against rubrics.
 
+**📚 Complete Grading Guide:** See [feedback/GRADING_WORKFLOW.md](feedback/GRADING_WORKFLOW.md) for the full 7-step workflow including anonymization, grading, and restoration.
+
 #### Single Submission Grading
 ```bash
 # Grade one submission
@@ -94,20 +96,27 @@ grade-submission --submission-dir hw/student1/ --rubric rubric.md
 grade-submission -s hw/student1/ -r rubric.md -o feedback.yaml --model gpt-4
 ```
 
-#### Batch Grading (New)
+#### Batch Grading
 ```bash
+# IMPORTANT: Always use the 2_redacted directory to protect student privacy
 # Grade all submissions in parallel
-grade-batch --submissions-dir hw/submissions/ --rubric rubric.md
+grade-batch --submissions-dir feedback/runs/[assignment]/2_redacted/ --rubric rubric.md
 
-# Use more threads for faster processing
-grade-batch -s hw/submissions/ -r rubric.md --max-threads 8
+# Typical workflow with all files in the same directory
+grade-batch -s feedback/runs/[assignment]/2_redacted/ \
+  -r feedback/runs/[assignment]/2_redacted/rubric.md \
+  --summary feedback/runs/[assignment]/2_redacted/grading_results.yaml \
+  --max-threads 8
 
-# Save summary to specific location
-grade-batch -s hw/submissions/ -r rubric.md --summary grading_results.yaml
-
-# Continue even if some submissions fail
-grade-batch -s hw/submissions/ -r rubric.md --continue-on-error
+# After grading, restore original names for final upload
+anonymize-dir restore feedback/runs/[assignment]/2_redacted/ \
+  feedback/runs/[assignment]/3_restored/ \
+  feedback/runs/[assignment]/2_redacted/anonymization_mapping.json
 ```
+
+**Notes:**
+- The anonymization process (prep-moodle) takes approximately 6 minutes for ~25 submissions. Do not interrupt!
+- Always restore names before uploading grades to Moodle (use `3_restored/moodle_grades_final.csv`)
 
 #### Key Features:
 - **Parallel Processing**: Batch grader uses async/await for concurrent grading
@@ -122,8 +131,8 @@ grade-batch -s hw/submissions/ -r rubric.md --continue-on-error
 Prepares Moodle homework submissions for anonymized feedback through a three-stage processing pipeline.
 
 ```bash
-# Basic usage (grades.csv is automatically generated from submissions)
-prep-moodle --zip submissions.zip --workdir ./output/
+# Basic usage - files go to feedback/runs/[assignment-name]/ by convention
+prep-moodle --zip submissions.zip --workdir feedback/runs/[assignment-name]
 
 # Skip the redaction stage (faster processing)
 prep-moodle --zip submissions.zip --workdir ./output/ --skip-stage 2_redacted
@@ -141,7 +150,8 @@ prep-moodle --workdir ./output/ --info
 #### Processing Stages:
 1. **0_submitted**: Extracts file submissions only (online text directories removed)
 2. **1_prep**: Generates moodle_grades.csv with all students + converts HTML to Markdown
-3. **2_redacted**: Runs full PII redaction for clean output (ready for distribution)
+3. **2_redacted**: Runs full PII redaction for clean output (ready for grading)
+4. **3_restored**: (Created after grading) Original names restored for final upload
 
 #### Key Features:
 - **Automatic moodle_grades.csv generation**: Creates grading spreadsheet from submission directory structure
@@ -175,6 +185,9 @@ Anonymizes personally identifiable information (PII) in directories using a loca
 ```bash
 # Anonymize a directory (both input and output paths are required)
 anonymize-dir anonymize /path/to/source /path/to/output
+
+# Restore original content using saved mappings
+anonymize-dir restore /path/to/anonymized /path/to/restored /path/to/anonymized/anonymization_mapping.json
 
 # Keep original filenames (don't anonymize them)
 anonymize-dir anonymize /path/to/source /path/to/output --keep-original-filenames
@@ -328,8 +341,12 @@ cat ./hw3_grading/summary.yaml
 # 6. Check specific feedback
 cat ./hw3_grading/2_redacted/REDACTED_PERSON1_ID_assignsubmission_file/feedback.yaml
 
-# 7. Update grades in the CSV (if needed)
+# 7. (Optional) Restore original student names
+anonymize-dir restore ./hw3_grading/2_redacted/ ./hw3_grading/3_restored/ ./hw3_grading/2_redacted/anonymization_mapping.json
+
+# 8. Update grades in the CSV (if needed)
 # The moodle_grades.csv in 2_redacted will contain anonymized results
+# The restored version in 3_restored will have original names
 ```
 
 ## Configuration

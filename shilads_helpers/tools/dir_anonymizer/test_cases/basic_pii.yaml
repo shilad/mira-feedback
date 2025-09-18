@@ -2,48 +2,49 @@ test_cases:
   - id: email_simple
     input: "Contact me at john.doe@example.com for details"
     expected:
-      emails: ["john.doe@example.com"]
+      REDACTED_EMAIL1: "john.doe@example.com"
     category: emails
     description: "Simple email detection"
 
   - id: email_multiple
     input: "Send to alice@company.org or bob@test.net"
     expected:
-      emails: ["alice@company.org", "bob@test.net"]
+      REDACTED_EMAIL1: "alice@company.org"
+      REDACTED_EMAIL2: "bob@test.net"
     category: emails
     description: "Multiple email addresses"
 
   - id: phone_us_standard
     input: "Call me at 555-123-4567"
     expected:
-      phones: ["555-123-4567"]
+      REDACTED_PHONE1: "555-123-4567"
     category: phones
     description: "US phone number with dashes"
 
   - id: phone_with_parens
     input: "My number is (555) 987-6543"
     expected:
-      phones: ["(555) 987-6543"]
+      REDACTED_PHONE1: "(555) 987-6543"
     category: phones
     description: "US phone with parentheses"
 
   - id: ssn_standard
     input: "SSN: 123-45-6789"
     expected:
-      ssn: ["123-45-6789"]
+      REDACTED_SSN1: "123-45-6789"
     category: ssn
     description: "Standard SSN format"
 
   - id: credit_card_visa
     input: "Payment card: 4111-1111-1111-1111"
     expected:
-      credit_cards: ["4111-1111-1111-1111"]
+      REDACTED_CREDITCARD1: "4111-1111-1111-1111"
     category: credit_cards
     description: "Visa test card number"
 
   - id: ipv4_standard
     input: "Server at 192.168.1.100"
     expected:
-      ipv4: ["192.168.1.100"]
+      REDACTED_IP1: "192.168.1.100"
     category: ipv4
     description: "Standard IPv4 address"

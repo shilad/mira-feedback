@@ -2,13 +2,14 @@ test_cases:
   - id: reset_test_1
     input: "Contact john@example.com and alice@test.com"
     expected:
-      emails: ["john@example.com", "alice@test.com"]
+      REDACTED_EMAIL1: "john@example.com"
+      REDACTED_EMAIL2: "alice@test.com"
     category: emails
     description: "First test - should get EMAIL1 and EMAIL2"
 
   - id: reset_test_2
     input: "Email bob@example.org for info"
     expected:
-      emails: ["bob@example.org"]
+      REDACTED_EMAIL1: "bob@example.org"
     category: emails
     description: "Second test - should get EMAIL1 (reset between tests)"

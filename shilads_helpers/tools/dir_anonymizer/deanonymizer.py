@@ -45,8 +45,9 @@ class DirectoryDeanonymizer:
         if 'mappings' in self.mappings:
             # New format: use string substitution
             original_path = anonymized_path
-            # Apply reverse mappings (redacted -> original)
-            for redacted, original in self.mappings['mappings'].items():
+            # Apply reverse mappings (redacted -> original) - sort by length to avoid partial replacements
+            sorted_mappings = sorted(self.mappings['mappings'].items(), key=lambda x: len(x[0]), reverse=True)
+            for redacted, original in sorted_mappings:
                 original_path = original_path.replace(redacted, original)
             return original_path
 
@@ -130,8 +131,9 @@ class DirectoryDeanonymizer:
                         # Use string substitution for unified format
                         if restore_filenames:
                             original_path_str = str(rel_path)
-                            # Apply reverse mappings
-                            for redacted, original in unified_mappings.items():
+                            # Apply reverse mappings - sort by length (longest first) to avoid partial replacements
+                            sorted_mappings = sorted(unified_mappings.items(), key=lambda x: len(x[0]), reverse=True)
+                            for redacted, original in sorted_mappings:
                                 original_path_str = original_path_str.replace(redacted, original)
                             original_rel_path = Path(original_path_str)
                         else:
@@ -161,8 +163,9 @@ class DirectoryDeanonymizer:
 
                     if is_unified:
                         # Use unified mappings for content restoration
-                        # Apply reverse mappings (token -> original)
-                        for redacted, original in unified_mappings.items():
+                        # Apply reverse mappings (token -> original) - sort by length to avoid partial replacements
+                        sorted_mappings = sorted(unified_mappings.items(), key=lambda x: len(x[0]), reverse=True)
+                        for redacted, original in sorted_mappings:
                             restored_content = restored_content.replace(redacted, original)
                     else:
                         # Legacy format - try to extract mappings from content_mappings

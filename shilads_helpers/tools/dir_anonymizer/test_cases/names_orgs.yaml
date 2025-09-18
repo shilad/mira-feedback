@@ -2,7 +2,7 @@ test_cases:
   - id: person_single
     input: "John Smith will attend the meeting"
     expected:
-      persons: ["John Smith"]
+      REDACTED_PERSON1: "John Smith"
     category: names
     description: "Single person name"
     tags: ["llm_only"]
@@ -11,7 +11,8 @@ test_cases:
   - id: person_multiple
     input: "Alice Johnson and Bob Wilson are collaborating"
     expected:
-      persons: ["Alice Johnson", "Bob Wilson"]
+      REDACTED_PERSON1: "Alice Johnson"
+      REDACTED_PERSON2: "Bob Wilson"
     category: names
     description: "Multiple person names"
     tags: ["llm_only"]
@@ -19,7 +20,7 @@ test_cases:
   - id: org_company
     input: "Microsoft announced new products"
     expected:
-      organizations: ["Microsoft"]
+      REDACTED_ORG1: "Microsoft"
     category: organizations
     description: "Company name"
     tags: ["llm_only"]
@@ -27,7 +28,8 @@ test_cases:
   - id: org_multiple
     input: "Google and Amazon are competing"
     expected:
-      organizations: ["Google", "Amazon"]
+      REDACTED_ORG1: "Google"
+      REDACTED_ORG2: "Amazon"
     category: organizations
     description: "Multiple organizations"
     tags: ["llm_only"]

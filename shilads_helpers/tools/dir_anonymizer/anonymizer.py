@@ -114,33 +114,33 @@ class DirectoryAnonymizer:
         moodle_pattern = r'^(.+?)_(\d+)_(assignsubmission_\w+)$'
         return bool(re.match(moodle_pattern, filename))
     
-    def anonymize_moodle_submission(self, filename: str) -> str:
+    def anonymize_moodle_submission(self, filename: str) -> Tuple[str, Dict[str, str]]:
         """Anonymize a Moodle submission directory name.
-        
+
         Handles the special case of Moodle submission directories which contain
         student names that must be anonymized. Pattern: "Name_ID_assignsubmission_file"
-        
+
         Args:
             filename: The Moodle submission directory name
-            
+
         Returns:
-            Anonymized directory name with student name replaced
+            Tuple of (anonymized directory name, mappings dict)
         """
         import re
         moodle_pattern = r'^(.+?)_(\d+)_(assignsubmission_\w+)$'
         match = re.match(moodle_pattern, filename)
-        
+
         if not match:
             # Shouldn't happen if is_moodle_submission was called first
-            return filename
-        
+            return filename, {}
+
         name_part = match.group(1)
         id_part = match.group(2)
         suffix_part = match.group(3)
-        
-        # Try to anonymize using LLM first
-        anonymized_name, _ = self.anonymizer.anonymize_data(name_part)
-        
+
+        # Try to anonymize using LLM first, which will use entity memory
+        anonymized_name, mappings = self.anonymizer.anonymize_data(name_part)
+
         # If LLM didn't detect it as a name, force anonymization
         # since we know this position contains a student name in Moodle format
         if anonymized_name == name_part:
@@ -154,12 +154,14 @@ class DirectoryAnonymizer:
             else:
                 tag = self.anonymizer.entity_memory[name_part]
             anonymized_name = tag
-        
+            # Create the mapping for this forced anonymization
+            mappings = {tag: name_part}
+
         # Clean up any extra whitespace or newlines
         anonymized_name = anonymized_name.strip()
-        
+
         # Reconstruct the filename
-        return f"{anonymized_name}_{id_part}_{suffix_part}"
+        return f"{anonymized_name}_{id_part}_{suffix_part}", mappings
     
     def anonymize_filename(self, filename: str, is_directory: bool = False) -> Tuple[str, Dict[str, str]]:
         """Anonymize a filename using LLM to detect and redact PII.
@@ -180,7 +182,7 @@ class DirectoryAnonymizer:
 
         # Special handling for Moodle submission directories
         if self.is_moodle_submission(filename):
-            return self.anonymize_moodle_submission(filename), {}
+            return self.anonymize_moodle_submission(filename)
         
         # Separate the extension from the base name for files
         path = Path(filename)
@@ -308,6 +310,8 @@ class DirectoryAnonymizer:
 
     def gather_files_to_process(self, input_path):
         files_to_process = []
+        moodle_csv_path = None
+
         for root, dirs, files in os.walk(input_path):
             root_path = Path(root)
 
@@ -322,10 +326,21 @@ class DirectoryAnonymizer:
             for file in files:
                 file_path = root_path / file
                 if self.should_process_file(file_path):
-                    files_to_process.append(file_path)
+                    # Check if this is moodle_grades.csv
+                    if file == 'moodle_grades.csv' and root_path == input_path:
+                        moodle_csv_path = file_path
+                    else:
+                        files_to_process.append(file_path)
+
         # Sort files by path length (shorter paths first)
         # This ensures parent directories are processed before their children
         files_to_process.sort(key=lambda p: (len(p.parts), str(p)))
+
+        # Process moodle_grades.csv first if it exists
+        if moodle_csv_path:
+            files_to_process.insert(0, moodle_csv_path)
+            LOG.info("Processing moodle_grades.csv first to establish canonical name mappings")
+
         return files_to_process
 
     def anonymize_file_path(self, file_path, rel_path):

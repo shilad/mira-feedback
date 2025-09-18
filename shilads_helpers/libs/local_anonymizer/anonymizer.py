@@ -5,6 +5,9 @@ import logging
 from typing import Dict, Tuple, Any, Optional, List
 from collections import defaultdict
 from .llm_backend import LLMBackend
+from .openpipe_backend import OpenPipeBackend
+from .presidio_backend import PresidioBackend
+from shilads_helpers.libs.text_chunker import chunk_text
 
 LOG = logging.getLogger(__name__)
 
@@ -15,46 +18,69 @@ class LocalAnonymizer:
     @classmethod
     def create_from_config(cls, config: Dict[str, Any]) -> "LocalAnonymizer":
         """Create a LocalAnonymizer instance from configuration.
-        
+
         Args:
             config: Configuration dictionary, typically from 'anonymizer' section
-            
+
         Returns:
             Configured LocalAnonymizer instance
         """
         local_config = config.get('local_model', {})
+        # Extract presidio config if present
+        presidio_config = local_config.get('presidio', {})
+
         return cls(
             model_name=local_config.get('name'),
             device=local_config.get('device', 'cpu'),
             system_prompt=local_config.get('system_prompt'),
-            max_input_tokens=local_config.get('max_input_tokens', 100)
+            max_input_tokens=local_config.get('max_input_tokens', 100),
+            backend=local_config.get('backend', 'llm'),
+            presidio_config=presidio_config
         )
     
-    def __init__(self, model_name: Optional[str] = None, device: str = "cpu", system_prompt: Optional[str] = None, max_input_tokens: int = 100):
+    def __init__(self, model_name: Optional[str] = None, device: str = "cpu", system_prompt: Optional[str] = None, max_input_tokens: int = 100, backend: str = "llm", presidio_config: Optional[Dict[str, Any]] = None):
         """Initialize the local anonymizer.
-        
+
         Args:
             model_name: Hugging Face model name (default: Phi-3-mini)
             device: Device to run on ('cpu' or 'cuda')
             system_prompt: Optional custom system prompt for PII detection
             max_input_tokens: Maximum tokens per chunk sent to LLM
+            backend: Which backend to use ('llm' for Hugging Face LLM, 'openpipe' for OpenPipe models, 'presidio' for Microsoft Presidio)
+            presidio_config: Configuration dictionary for Presidio backend (language, confidence_threshold, spacy_model)
         """
         self.model_name = model_name
         self.device = device
         self.system_prompt = system_prompt
         self.max_input_tokens = max_input_tokens
-        
+        self.backend_type = backend
+
         # Track entity counters for generating tags
         self.entity_counters = defaultdict(int)
-        
+
         # Track entity to tag mappings for consistency
         self.entity_memory = {}  # Maps original PII text to assigned tag
-        
-        # Initialize LLM backend
-        kwargs = { 'model_name': self.model_name } if self.model_name else {}
-        self.llm = LLMBackend(device=device, max_input_tokens=max_input_tokens, **kwargs)
-        
-        LOG.info(f"LocalAnonymizer initialized with model: {self.model_name}, max_input_tokens: {max_input_tokens}")
+
+        # Initialize backend based on selection
+        if backend == "openpipe":
+            self.backend = OpenPipeBackend(device=device)
+            LOG.info(f"LocalAnonymizer initialized with OpenPipe backend, device: {device}")
+        elif backend == "presidio":
+            # Use provided config or defaults
+            if presidio_config is None:
+                presidio_config = {}
+
+            self.backend = PresidioBackend(
+                language=presidio_config.get('language', 'en'),
+                confidence_threshold=presidio_config.get('confidence_threshold', 0.0),
+                nlp_configuration=presidio_config.get('nlp_configuration')
+            )
+            LOG.info(f"LocalAnonymizer initialized with Presidio backend (lang={presidio_config.get('language', 'en')}, confidence={presidio_config.get('confidence_threshold', 0.0)})")
+        else:
+            # Default to LLM backend
+            kwargs = { 'model_name': self.model_name } if self.model_name else {}
+            self.backend = LLMBackend(device=device, max_input_tokens=max_input_tokens, **kwargs)
+            LOG.info(f"LocalAnonymizer initialized with LLM backend model: {self.model_name}, max_input_tokens: {max_input_tokens}")
     
     def anonymize_data(self, text: str) -> Tuple[str, Dict[str, str]]:
         """Anonymize PII in text.
@@ -72,8 +98,8 @@ class LocalAnonymizer:
         # Note: We don't reset counters or memory here anymore
         # Use reset() method to clear state for independent runs
 
-        # Detect PII using LLM
-        pii_data = self.llm.detect_pii(text, self.system_prompt)
+        # Always use chunking for consistency (even for small texts)
+        pii_data = self._detect_pii_chunked(text)
 
         # Also detect common patterns with regex for reliability
         regex_pii = self._detect_regex_patterns(text)
@@ -215,3 +241,64 @@ class LocalAnonymizer:
         
         # Return the numbered entity tag
         return f"REDACTED_{tag_name}{counter}"
+
+    def _detect_pii_chunked(self, text: str) -> Dict[str, List[str]]:
+        """Detect PII in text by processing it in chunks.
+
+        Args:
+            text: Text to analyze (will be chunked)
+
+        Returns:
+            Dictionary of detected PII by category
+        """
+        # Use the text_chunker utility
+        lookback_words = 5  # Number of words to overlap between chunks
+        chunk_generator = chunk_text(
+            text,
+            lambda t: self.backend.num_tokens(t),
+            self.max_input_tokens,
+            lookback_words
+        )
+        chunks = list(chunk_generator)  # Convert to list for counting
+        LOG.debug(f"Split text into {len(chunks)} chunks")
+
+        # Process each chunk
+        chunk_results = []
+        for i, chunk in enumerate(chunks):
+            LOG.debug(f"Processing chunk {i+1}/{len(chunks)}")
+            result = self.backend.detect_pii(chunk, self.system_prompt)
+            chunk_results.append(result)
+
+        # Merge results from all chunks
+        return self._merge_pii_results(chunk_results)
+
+    def _merge_pii_results(self, results: List[Dict[str, List[str]]]) -> Dict[str, List[str]]:
+        """Merge PII detection results from multiple chunks.
+
+        Args:
+            results: List of PII detection results from chunks
+
+        Returns:
+            Merged PII detection results with duplicates removed
+        """
+        merged = {}
+
+        # Collect all results by category
+        for result in results:
+            for category, items in result.items():
+                if category not in merged:
+                    merged[category] = []
+                merged[category].extend(items)
+
+        # Remove duplicates while preserving order
+        for category in merged:
+            seen = set()
+            unique_items = []
+            for item in merged[category]:
+                if item not in seen:
+                    seen.add(item)
+                    unique_items.append(item)
+            merged[category] = unique_items
+
+        return merged
+

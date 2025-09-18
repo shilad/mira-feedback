@@ -9,7 +9,7 @@ This is a collection of Python utilities and scripts for academic (Macalester CS
 ## Common Commands
 
 ### Grading Commands
-**Note:** For a complete step-by-step grading workflow, see the [Grading Workflow section in README.md](README.md#grading-workflow).
+**📚 Complete Grading Guide:** See [feedback/GRADING_WORKFLOW.md](feedback/GRADING_WORKFLOW.md) for step-by-step instructions, rubric templates, and troubleshooting.
 
 **IMPORTANT:** Always use the `2_redacted` directory when grading to protect student privacy. Never grade from `0_submitted` or `1_prep` directories.
 

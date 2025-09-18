@@ -86,13 +86,16 @@ class AccuracyMetrics:
             # Calculate precision/recall for this category
             all_expected = []
             all_detected = []
-            
+
             for result in cat_results:
-                expected = result.get('expected', {}).get(category, [])
-                detected = result.get('detected', {}).get(category, [])
-                all_expected.extend(expected)
-                all_detected.extend(detected)
-            
+                # Extract values from the flat dict format
+                expected_dict = result.get('expected', {})
+                detected_dict = result.get('detected', {})
+
+                # Collect all values (the actual PII strings)
+                all_expected.extend(expected_dict.values())
+                all_detected.extend(detected_dict.values())
+
             if all_expected or all_detected:
                 metrics = self.calculate_precision_recall_f1(all_expected, all_detected)
                 lines.append(f"  Precision: {metrics['precision']:.1%}")
@@ -198,56 +201,46 @@ class AccuracyTester:
 
         return all_test_cases
     
-    def extract_detected_pii(self, mappings: Dict) -> Dict[str, List[str]]:
-        """Extract detected PII from anonymizer mappings."""
-        detected = defaultdict(list)
-        
-        # Map anonymizer categories to test categories
-        category_map = {
-            # Regex patterns used by anonymizer
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b': 'emails',
-            r'\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b': 'phones',
-            r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b': 'credit_cards',
-            # Named categories
-            'SSN': 'ssn',
-            'PERSON': 'names',
-            'ORGANIZATION': 'organizations',
-            'IP_ADDRESS': 'ipv4'
-        }
-        
-        for key, items in mappings.items():
-            if isinstance(items, dict):
-                category = category_map.get(key, key.lower())
-                for original, replacement in items.items():
-                    detected[category].append(original)
-        
-        return dict(detected)
+    def extract_detected_pii(self, mappings: Dict) -> Dict[str, str]:
+        """Extract detected PII from anonymizer mappings.
+
+        The new format is a flat dict with REDACTED_* keys mapping to original values.
+        We return the mappings as-is since they're already in the right format.
+        """
+        # New format: mappings is already a flat dict like:
+        # {'REDACTED_EMAIL1': 'john@example.com', 'REDACTED_PERSON1': 'John Doe'}
+        return mappings
     
     def validate_detection(self, expected: Dict, detected: Dict, test_case: Dict) -> List[str]:
-        """Validate detected PII against expected."""
+        """Validate detected PII against expected.
+
+        Compare only the values (actual PII strings), ignoring the REDACTED_* keys.
+        This makes the comparison invariant to order and category differences.
+        """
         errors = []
         tags = test_case.get('tags', [])
-        
+
         # For false positive tests, nothing should be detected
         if 'false_positive' in tags:
             if detected:
-                detected_str = ', '.join(f"{k}: {v}" for k, v in detected.items())
+                detected_str = ', '.join(f"{v}" for v in detected.values())
                 errors.append(f"False positive - detected: {detected_str}")
             return errors
-        
-        # Check each expected category
-        for category, expected_items in expected.items():
-            detected_items = detected.get(category, [])
-            
-            # Check for missing detections
-            for item in expected_items:
-                if item not in detected_items:
-                    errors.append(f"Not detected ({category}): '{item}'")
-            
-            # Check for extra detections (optional)
-            for item in detected_items:
-                if category in expected and item not in expected_items:
-                    errors.append(f"Unexpected ({category}): '{item}'")
+
+        # Extract just the values (PII strings) from both dicts
+        expected_values = set(expected.values())
+        detected_values = set(detected.values())
+
+        # Check for missing detections
+        missing = expected_values - detected_values
+        for value in missing:
+            errors.append(f"Not detected: '{value}'")
+
+        # Check for extra detections
+        extra = detected_values - expected_values
+        for value in extra:
+            category = test_case.get('category', 'unknown')
+            errors.append(f"Unexpected detection ({category}): '{value}'")
         
         return errors
     
