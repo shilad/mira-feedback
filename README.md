@@ -5,10 +5,12 @@ MIRA collaborates with an instructor on grading criteria and then drafts feedbac
 
 ## What MIRA Does
 
-1. **Drafts grading feedback** - AI generates initial *calibrated* feedback based on your rubric
-2. **Provides review interface** - Web UI for editing all AI-generated feedback
-3. **Protects privacy** - Automatically anonymizes student data during grading
-4. **Integrates with Moodle** - Works with standard Moodle export format
+1. **Rubric co-creation** - AI helps you create and refine a rubric for your assignment
+2. **Common mistake calibration** - AI reviews submissions and your rubric to create a *calibrated* rubric that includes common mistakes and scoring adjustments   
+3. **Drafts grading feedback** - AI generates initial feedback based on your rubric
+4. **Provides human review interface** - Web UI for editing all AI-generated feedback
+5. **Protects privacy** - Automatically anonymizes student data during grading
+6. **Integrates with Moodle** - Works with standard Moodle export format
 
 ## Installation
 
@@ -23,11 +25,19 @@ uv pip install -e .
 
 # Download spaCy model for PII detection
 python -m spacy download en_core_web_lg
+
+# Create config/local.yaml with your OpenAI API key (see Configuration section below)
 ```
 
 ## Quick Start
 
-Grade a batch of Moodle submissions in 5 steps:
+Generate feedback using the AI-assisted workflow:
+
+```bash
+grade-with-claude moodle_download.zip hw/
+```
+
+Generate feedback for a Moodle submissions in 5 steps:
 
 ```bash
 # 1. Prepare submissions (creates 3 directories)
