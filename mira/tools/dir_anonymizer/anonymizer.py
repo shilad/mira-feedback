@@ -10,8 +10,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from fnmatch import fnmatch
 from tqdm import tqdm
 
-from shilads_helpers.libs.config_loader import ConfigType, get_config
-from shilads_helpers.libs.local_anonymizer import LocalAnonymizer
+from mira.libs.config_loader import ConfigType, get_config
+from mira.libs.local_anonymizer import LocalAnonymizer
 
 logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger(__name__)
@@ -218,7 +218,7 @@ class DirectoryAnonymizer:
             if file_path.name == 'moodle_grades.csv':
                 # Lazy import to avoid circular dependency
                 if self.moodle_grades_handler is None:
-                    from shilads_helpers.tools.moodle_prep.moodle_grades_handler import MoodleGradesHandler
+                    from mira.tools.moodle_prep.moodle_grades_handler import MoodleGradesHandler
                     self.moodle_grades_handler = MoodleGradesHandler()
                 LOG.info(f"Using specialized handler for {file_path.name}")
                 return self.moodle_grades_handler.anonymize_moodle_grades(file_path)

@@ -45,6 +45,12 @@ uv pip install -e .
 
 # Download spaCy model for Presidio PII detection
 python -m spacy download en_core_web_lg
+
+# REQUIRED: Create config/local.yaml with OpenAI API key
+# Copy config/local.yaml.example or create from scratch:
+# openai:
+#   api_key: "your-api-key-here"
+#   organization: "your-org-id"  # Optional
 ```
 
 ### Testing
@@ -90,14 +96,14 @@ The test suite is organized with pytest markers:
 ```bash
 # Install and run ruff
 uv pip install ruff
-ruff check shilads_helpers/
-ruff format shilads_helpers/
+ruff check mira/
+ruff format mira/
 ```
 
 ## Architecture
 
 ### Package Structure
-The codebase follows a standard Python package layout with `shilads_helpers/` as the main package:
+The codebase follows a standard Python package layout with `mira/` as the main package:
 - **libs/**: Shared libraries (config_loader, local_anonymizer, text_chunker, llm)
 - **tools/**: Multi-file tools (dir_anonymizer, moodle_prep, grading_feedback)
 - **scripts/**: Single-file utilities (currently empty, ready for simple scripts)
@@ -143,10 +149,10 @@ In `tools/grading_feedback/`:
 - **cli.py**: Command-line interface for single submission grading
 
 ### Import Structure
-All imports use absolute imports from `shilads_helpers` package:
+All imports use absolute imports from `mira` package:
 ```python
-from shilads_helpers.libs.config_loader import load_all_configs
-from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
+from mira.libs.config_loader import load_all_configs
+from mira.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 ```
 
 ## Key Dependencies
@@ -162,19 +168,19 @@ from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 
 ## Adding New Tools
 
-1. Create directory under `shilads_helpers/tools/your_tool/`
+1. Create directory under `mira/tools/your_tool/`
 2. Add `__init__.py` with exports
 3. For CLI tools, add entry point in `pyproject.toml`:
    ```toml
    [project.scripts]
-   your-command = "shilads_helpers.tools.your_tool.cli:main"
+   your-command = "mira.tools.your_tool.cli:main"
    ```
 4. Reinstall package: `uv pip install -e .`
 
 ## Configuration Usage
 Tools should use the config system:
 ```python
-from shilads_helpers.libs.config_loader import load_all_configs, get_config
+from mira.libs.config_loader import load_all_configs, get_config
 
 config = load_all_configs()  # Loads all YAML files from config/
 value = get_config("anonymizer.file_types", config)  # Dot notation access
@@ -195,7 +201,7 @@ value = get_config("anonymizer.file_types", config)  # Dot notation access
 - Unit tests use mocks to avoid loading Presidio models in every test
 - Accuracy tests can run against YAML test cases
 - Text chunking has comprehensive test coverage
-- All imports should be absolute from `shilads_helpers` package
+- All imports should be absolute from `mira` package
 - Tests are organized with pytest markers for performance optimization
 - Slow tests (40+ seconds) are marked with `@pytest.mark.slow_integration_test`
 - Fast tests run by default, slow tests can be run with `--with-slow-integration`

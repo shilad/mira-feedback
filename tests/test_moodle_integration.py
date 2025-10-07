@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
-from shilads_helpers.libs.config_loader import ConfigType
-from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
+from mira.libs.config_loader import ConfigType
+from mira.tools.moodle_prep.processor import MoodleProcessor
 
 
 def get_test_config() -> ConfigType:
@@ -71,7 +71,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # Mock the DirectoryAnonymizer for stage 2 to avoid slow LLM processing
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer') as mock_anon:
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer') as mock_anon:
             mock_instance = mock_anon.return_value
             
             # Create the output directory that DirectoryAnonymizer would create
@@ -100,7 +100,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # Run only stage 0
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip, skip_stages={'1_prep', '2_redacted'})
         
         stage0_dir = work_dir / '0_submitted'
@@ -130,7 +130,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip, skip_stages={'2_redacted'})
         
         # Check moodle_grades.csv exists
@@ -169,7 +169,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip, skip_stages={'2_redacted'})
         
         stage1_dir = work_dir / '1_prep'
@@ -228,7 +228,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip, skip_stages={'2_redacted'})
         
         # Check feedback in stage 0 (should be untouched)
@@ -259,7 +259,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # Run stages 0 and 1 only (to avoid slow LLM processing)
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip, skip_stages={'2_redacted'})
         
         stage1_dir = work_dir / '1_prep'
@@ -292,7 +292,7 @@ class TestMoodleIntegration:
         processor = MoodleProcessor(config, work_dir)
         
         # First, run stage 0 only
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             processor.process(test_zip, skip_stages={'1_prep', '2_redacted'})
         
         assert (work_dir / '0_submitted').exists()
@@ -300,7 +300,7 @@ class TestMoodleIntegration:
         assert not (work_dir / '2_redacted').exists()
         
         # Now run stage 1 only (skipping 0 since it already exists)
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             processor.process(test_zip, skip_stages={'0_submitted', '2_redacted'})
         
         assert (work_dir / '0_submitted').exists()
@@ -313,7 +313,7 @@ class TestMoodleIntegration:
         config = get_test_config()
         processor = MoodleProcessor(config, work_dir, dry_run=True)
         
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(test_zip)
         
         # Nothing should be created

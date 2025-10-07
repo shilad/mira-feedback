@@ -6,8 +6,8 @@ from pathlib import Path
 import json
 import pytest
 
-from shilads_helpers.libs.config_loader import ConfigType
-from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
+from mira.libs.config_loader import ConfigType
+from mira.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 
 
 def get_test_config() -> ConfigType:

@@ -6,10 +6,10 @@ from pathlib import Path
 import tempfile
 import yaml
 
-from shilads_helpers.libs.config_loader import load_all_configs
-from shilads_helpers.tools.grading_feedback.grader import SubmissionGrader
-from shilads_helpers.tools.grading_feedback.rubric_parser import RubricParser
-from shilads_helpers.tools.grading_feedback.models import RubricCriterion
+from mira.libs.config_loader import load_all_configs
+from mira.tools.grading_feedback.grader import SubmissionGrader
+from mira.tools.grading_feedback.rubric_parser import RubricParser
+from mira.tools.grading_feedback.models import RubricCriterion
 
 
 # Mark all tests in this file as integration tests

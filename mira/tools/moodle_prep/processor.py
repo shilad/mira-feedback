@@ -6,9 +6,9 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-from shilads_helpers.libs.config_loader import ConfigType
-from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
-from shilads_helpers.tools.moodle_prep.utils import (
+from mira.libs.config_loader import ConfigType
+from mira.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
+from mira.tools.moodle_prep.utils import (
     process_html_files,
     generate_grades_csv_from_data,
     parse_moodle_dirname,

@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from shilads_helpers.libs.config_loader import ConfigType
-from shilads_helpers.libs.local_anonymizer import LocalAnonymizer, LocalDeanonymizer
-from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
-from shilads_helpers.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
+from mira.libs.config_loader import ConfigType
+from mira.libs.local_anonymizer import LocalAnonymizer, LocalDeanonymizer
+from mira.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
+from mira.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
 
 
 def get_test_config() -> ConfigType:
@@ -40,7 +40,7 @@ def get_test_config() -> ConfigType:
 @pytest.fixture
 def mock_presidio_backend():
     """Mock Presidio backend to avoid model loading during tests."""
-    with patch('shilads_helpers.libs.local_anonymizer.anonymizer.PresidioBackend') as mock:
+    with patch('mira.libs.local_anonymizer.anonymizer.PresidioBackend') as mock:
         # Create a mock instance that returns empty PII detection
         mock_instance = Mock()
         mock_instance.detect_pii.return_value = {

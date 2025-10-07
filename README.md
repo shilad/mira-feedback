@@ -1,10 +1,11 @@
 # MIRA (Mentor-Informed Review Assistant)
 
-AI-assisted grading with human review. MIRA helps instructors grade assignments by drafting feedback that instructors can review and edit before finalizing.
+AI-assisted feedback with human review. 
+MIRA collaborates with an instructor on grading criteria and then drafts feedback that instructors can review and edit before finalizing.
 
 ## What MIRA Does
 
-1. **Drafts grading feedback** - AI generates initial feedback based on your rubric
+1. **Drafts grading feedback** - AI generates initial *calibrated* feedback based on your rubric
 2. **Provides review interface** - Web UI for editing all AI-generated feedback
 3. **Protects privacy** - Automatically anonymizes student data during grading
 4. **Integrates with Moodle** - Works with standard Moodle export format
@@ -129,13 +130,19 @@ Rubrics use markdown table format:
 
 ## Configuration
 
+**Required:** Create `config/local.yaml` with your OpenAI API key:
+
+```yaml
+openai:
+  api_key: "your-api-key-here"
+  organization: "your-org-id"  # Optional
+```
+
 Edit `config/default.yaml` to change:
 - AI model selection for grading (default: gpt-5)
 - Presidio PII detection settings
 - File types to process
 - Exclude patterns
-
-Local overrides in `config/local.yaml` (gitignored).
 
 ## Development
 
@@ -154,7 +161,7 @@ pytest tests/test_grading_feedback.py -v
 ### Project Structure
 ```
 mira-grader/
-├── shilads_helpers/     # Python package (legacy name for compatibility)
+├── mira/               # Python package
 │   ├── libs/           # Shared libraries
 │   ├── tools/          # Main tools
 │   └── scripts/        # Utility scripts
@@ -164,13 +171,13 @@ mira-grader/
 ```
 
 ### Adding New Tools
-1. Create directory under `shilads_helpers/tools/your_tool/`
+1. Create directory under `mira/tools/your_tool/`
 2. Add entry point in `pyproject.toml`
 3. Reinstall: `uv pip install -e .`
 
 ## API Keys Required
 
-- **OpenAI API key** for grading (set as `OPENAI_API_KEY` environment variable)
+- **OpenAI API key** for grading - must be configured in `config/local.yaml` (see Configuration section above)
 
 ## License
 

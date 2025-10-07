@@ -6,8 +6,8 @@ import logging
 import sys
 from pathlib import Path
 
-from shilads_helpers.libs.config_loader import load_all_configs
-from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
+from mira.libs.config_loader import load_all_configs
+from mira.tools.moodle_prep.processor import MoodleProcessor
 
 logging.basicConfig(
     level=logging.INFO,

@@ -9,8 +9,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from shilads_helpers.libs.config_loader import ConfigType
-from shilads_helpers.tools.moodle_prep.processor import MoodleProcessor
+from mira.libs.config_loader import ConfigType
+from mira.tools.moodle_prep.processor import MoodleProcessor
 
 
 def get_test_config() -> ConfigType:
@@ -35,7 +35,7 @@ def get_test_config() -> ConfigType:
             }
         }
     }
-from shilads_helpers.tools.moodle_prep.utils import (
+from mira.tools.moodle_prep.utils import (
     parse_moodle_dirname,
     convert_html_to_markdown
 )
@@ -69,7 +69,7 @@ class TestMoodleUtils:
         """Test HTML to Markdown conversion with html-to-markdown."""
         html = "<h1>Title</h1><p>This is a <strong>test</strong> paragraph.</p>"
         
-        with patch('shilads_helpers.tools.moodle_prep.utils.convert_to_markdown') as mock_converter:
+        with patch('mira.tools.moodle_prep.utils.convert_to_markdown') as mock_converter:
             mock_converter.return_value = "# Title\n\nThis is a **test** paragraph.\n"
             
             result = convert_html_to_markdown(html)
@@ -123,7 +123,7 @@ class TestMoodleProcessor:
         processor = MoodleProcessor(config, work_dir, dry_run=True)
         
         # Mock the DirectoryAnonymizer to avoid dependency issues
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(zip_path)
         
         # Check that no directories were created
@@ -156,7 +156,7 @@ class TestMoodleProcessor:
         ]
         
         # Skip stage 0 and 2, only run stage 1
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(
                 zip_path,
                 skip_stages={'0_submitted', '2_redacted'}
@@ -189,7 +189,7 @@ class TestMoodleProcessor:
         processor = MoodleProcessor(config, work_dir)
 
         # Mock the DirectoryAnonymizer to avoid dependency issues
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             # Process only stages 0 and 1
             results = processor.process(zip_path, skip_stages={'2_redacted'})
 
@@ -243,7 +243,7 @@ class TestMoodleProcessor:
         config = get_test_config()
         processor = MoodleProcessor(config, work_dir)
 
-        with patch('shilads_helpers.tools.moodle_prep.processor.DirectoryAnonymizer'):
+        with patch('mira.tools.moodle_prep.processor.DirectoryAnonymizer'):
             results = processor.process(zip_path, skip_stages={'2_redacted'})
 
         # Check that Alice has her file submission directory
@@ -266,13 +266,13 @@ class TestCLI:
 
     def test_cli_import(self):
         """Test that CLI can be imported."""
-        from shilads_helpers.tools.moodle_prep import cli
+        from mira.tools.moodle_prep import cli
         assert hasattr(cli, 'main')
 
     @patch('sys.argv', ['prep-moodle', '--help'])
     def test_cli_help(self):
         """Test CLI help message."""
-        from shilads_helpers.tools.moodle_prep.cli import main
+        from mira.tools.moodle_prep.cli import main
 
         with pytest.raises(SystemExit) as exc_info:
             main()

@@ -7,7 +7,7 @@ import sys
 import yaml
 from pathlib import Path
 
-from shilads_helpers.libs.config_loader import load_all_configs
+from mira.libs.config_loader import load_all_configs
 from .grader import SubmissionGrader
 from .rubric_parser import RubricParser
 

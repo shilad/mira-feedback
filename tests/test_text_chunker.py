@@ -1,7 +1,7 @@
 """Tests for the text chunking utility."""
 
 import pytest
-from shilads_helpers.libs.text_chunker import chunk_text
+from mira.libs.text_chunker import chunk_text
 
 
 class TestTextChunker:

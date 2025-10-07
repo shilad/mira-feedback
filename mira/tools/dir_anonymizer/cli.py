@@ -6,10 +6,10 @@ import argparse
 import logging
 from pathlib import Path
 
-from shilads_helpers.libs.config_loader import load_all_configs
-from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
-from shilads_helpers.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
-from shilads_helpers.tools.dir_anonymizer.accuracy import AccuracyTester
+from mira.libs.config_loader import load_all_configs
+from mira.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
+from mira.tools.dir_anonymizer.deanonymizer import DirectoryDeanonymizer
+from mira.tools.dir_anonymizer.accuracy import AccuracyTester
 
 logging.basicConfig(
     level=logging.INFO,

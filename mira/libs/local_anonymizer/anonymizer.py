@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Tuple, Any, Optional, List
 from collections import defaultdict
 from .presidio_backend import PresidioBackend
-from shilads_helpers.libs.text_chunker import chunk_text
+from mira.libs.text_chunker import chunk_text
 
 LOG = logging.getLogger(__name__)
 

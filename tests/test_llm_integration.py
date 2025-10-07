@@ -3,8 +3,8 @@
 import pytest
 import asyncio
 
-from shilads_helpers.libs.config_loader import load_all_configs
-from shilads_helpers.libs.llm import create_agent
+from mira.libs.config_loader import load_all_configs
+from mira.libs.llm import create_agent
 
 
 # Mark all tests in this file as integration tests
@@ -165,7 +165,7 @@ class TestCreateAgentIntegration:
     @pytest.mark.asyncio
     async def test_grading_agent_integration(self):
         """Test the grading agent wrapper function."""
-        from shilads_helpers.tools.grading_feedback.grader import create_grading_agent
+        from mira.tools.grading_feedback.grader import create_grading_agent
 
         # Create grading agent
         agent = create_grading_agent(

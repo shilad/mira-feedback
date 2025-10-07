@@ -5,7 +5,7 @@ import pytest
 import tempfile
 import yaml
 
-from shilads_helpers.libs.config_loader import load_configs, load_default_configs, get_config
+from mira.libs.config_loader import load_configs, load_default_configs, get_config
 
 
 def test_load_single_config():

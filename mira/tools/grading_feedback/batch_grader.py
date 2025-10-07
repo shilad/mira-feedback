@@ -10,7 +10,7 @@ from datetime import datetime
 
 from tqdm.asyncio import tqdm
 
-from shilads_helpers.libs.config_loader import ConfigType, get_config
+from mira.libs.config_loader import ConfigType, get_config
 from .grader import SubmissionGrader
 from .rubric_parser import RubricParser
 from .models import GradingResult, RubricCriterion

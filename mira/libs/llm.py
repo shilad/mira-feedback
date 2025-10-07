@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 
-from shilads_helpers.libs.config_loader import ConfigType, get_config
+from mira.libs.config_loader import ConfigType, get_config
 
 
 # Fix up logging level for httpx to WARNING to reduce noise

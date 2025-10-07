@@ -5,8 +5,8 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
-from shilads_helpers.libs.config_loader import ConfigType
-from shilads_helpers.libs.llm import create_agent
+from mira.libs.config_loader import ConfigType
+from mira.libs.llm import create_agent
 from .models import RubricCriterion, ComponentFeedback, GradingResult, GradingAdjustment
 from .rubric_parser import RubricParser
 

@@ -4,7 +4,7 @@ import os
 import pytest
 from unittest.mock import patch, Mock, MagicMock
 
-from shilads_helpers.libs.llm import create_agent
+from mira.libs.llm import create_agent
 
 
 class TestCreateAgent:

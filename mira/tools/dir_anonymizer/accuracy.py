@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Dict, List, Any
 from collections import defaultdict
 
-from shilads_helpers.libs.local_anonymizer import LocalAnonymizer
-from shilads_helpers.libs.config_loader import ConfigType, get_config
+from mira.libs.local_anonymizer import LocalAnonymizer
+from mira.libs.config_loader import ConfigType, get_config
 
 
 class AccuracyMetrics:

@@ -4,7 +4,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from shilads_helpers.tools.grading_feedback.submission_utils import (
+from mira.tools.grading_feedback.submission_utils import (
     find_all_submission_files,
     create_submission_summary,
     build_submission_content,

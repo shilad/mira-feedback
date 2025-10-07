@@ -32,20 +32,20 @@ dev = [
 ]
 
 [project.scripts]
-anonymize-dir = "shilads_helpers.tools.dir_anonymizer.cli:main"
-prep-moodle = "shilads_helpers.tools.moodle_prep.cli:main"
-grade-submission = "shilads_helpers.tools.grading_feedback.cli:main"
-grade-batch = "shilads_helpers.tools.grading_feedback.batch_cli:main"
-grade-review = "shilads_helpers.tools.grading_review_interface.cli:main"
-grade-calibrate = "shilads_helpers.tools.grading_feedback.calibration.calibration_cli:main"
-grade-with-claude = "shilads_helpers.scripts.grade_with_claude_cli:main"
+anonymize-dir = "mira.tools.dir_anonymizer.cli:main"
+prep-moodle = "mira.tools.moodle_prep.cli:main"
+grade-submission = "mira.tools.grading_feedback.cli:main"
+grade-batch = "mira.tools.grading_feedback.batch_cli:main"
+grade-review = "mira.tools.grading_review_interface.cli:main"
+grade-calibrate = "mira.tools.grading_feedback.calibration.calibration_cli:main"
+grade-with-claude = "mira.scripts.grade_with_claude_cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shilads_helpers"]
+packages = ["mira"]
 
 [tool.uv]
 dev-dependencies = [

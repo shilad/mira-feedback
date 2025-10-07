@@ -7,8 +7,8 @@ import yaml
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 
-from shilads_helpers.tools.grading_feedback.batch_grader import BatchGrader, BatchGradingResult
-from shilads_helpers.tools.grading_feedback.models import (
+from mira.tools.grading_feedback.batch_grader import BatchGrader, BatchGradingResult
+from mira.tools.grading_feedback.models import (
     GradingResult, ComponentFeedback, RubricCriterion
 )
 
@@ -140,7 +140,7 @@ def test_batch_grading_result_with_error():
 
 
 @pytest.mark.asyncio
-@patch('shilads_helpers.tools.grading_feedback.batch_grader.SubmissionGrader')
+@patch('mira.tools.grading_feedback.batch_grader.SubmissionGrader')
 async def test_grade_single_submission_async(mock_grader_class, sample_config, sample_rubric, sample_grading_result):
     """Test grading a single submission asynchronously."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -181,7 +181,7 @@ async def test_grade_single_submission_async(mock_grader_class, sample_config, s
 
 
 @pytest.mark.asyncio
-@patch('shilads_helpers.tools.grading_feedback.batch_grader.SubmissionGrader')
+@patch('mira.tools.grading_feedback.batch_grader.SubmissionGrader')
 async def test_grade_single_submission_error_async(mock_grader_class, sample_config, sample_rubric):
     """Test handling error in single submission grading."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -212,8 +212,8 @@ async def test_grade_single_submission_error_async(mock_grader_class, sample_con
         assert result.total_score == 0
 
 
-@patch('shilads_helpers.tools.grading_feedback.batch_grader.SubmissionGrader')
-@patch('shilads_helpers.tools.grading_feedback.batch_grader.RubricParser')
+@patch('mira.tools.grading_feedback.batch_grader.SubmissionGrader')
+@patch('mira.tools.grading_feedback.batch_grader.RubricParser')
 def test_grade_all_submissions_sync(mock_parser_class, mock_grader_class,
                                    sample_config, sample_rubric, sample_grading_result):
     """Test grading all submissions using the sync wrapper."""

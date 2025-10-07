@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from shilads_helpers.libs.config_loader import load_all_configs
+from mira.libs.config_loader import load_all_configs
 from .batch_grader import BatchGrader
 
 logging.basicConfig(
