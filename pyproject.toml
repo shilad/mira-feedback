@@ -22,6 +22,10 @@ dependencies = [
     "openai>=1.0.0",
     "pydantic>=2.0.0",
     "pydantic-ai>=0.0.38",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "rich>=13.0.0",
+    "click>=8.0.0",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +40,9 @@ anonymize-dir = "shilads_helpers.tools.dir_anonymizer.cli:main"
 prep-moodle = "shilads_helpers.tools.moodle_prep.cli:main"
 grade-submission = "shilads_helpers.tools.grading_feedback.cli:main"
 grade-batch = "shilads_helpers.tools.grading_feedback.batch_cli:main"
+grade-review = "shilads_helpers.tools.grading_review_interface.cli:main"
+grade-calibrate = "shilads_helpers.tools.grading_feedback.calibration.calibration_cli:main"
+grade-with-claude = "shilads_helpers.scripts.grade_with_claude_cli:main"
 
 [build-system]
 requires = ["hatchling"]

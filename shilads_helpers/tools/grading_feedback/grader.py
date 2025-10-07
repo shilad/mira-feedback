@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any
 
 from shilads_helpers.libs.config_loader import ConfigType
 from shilads_helpers.libs.llm import create_agent
-from .models import RubricCriterion, ComponentFeedback, GradingResult
+from .models import RubricCriterion, ComponentFeedback, GradingResult, GradingAdjustment
 from .rubric_parser import RubricParser
 
 LOG = logging.getLogger(__name__)
@@ -32,7 +32,10 @@ def create_grading_agent(configs: ConfigType,
     system_prompt = (
         "You are a helpful grading assistant. Evaluate student submissions "
         "against the provided rubric criteria. Be fair, constructive, and specific "
-        "in your feedback. Award partial credit where appropriate."
+        "in your feedback. Award partial credit where appropriate. "
+        "When situational adjustments are provided, identify which situation best "
+        "matches the submission and apply the corresponding adjustment. "
+        "Document which adjustment was applied using its name."
     )
 
     return create_agent(
@@ -110,10 +113,28 @@ class SubmissionGrader:
                     # Convert to GradingResult
                     components = {}
                     for name, info in data.get('components', {}).items():
+                        # Extract adjustments (now required)
+                        adjustments = []
+                        if 'adjustments' in info and info['adjustments']:
+                            adjustments = [
+                                GradingAdjustment(
+                                    name=adj.get('name', 'unknown'),
+                                    description=adj.get('description', ''),
+                                    score_impact=adj.get('score_impact', 0)
+                                )
+                                for adj in info['adjustments']
+                            ]
+
+                        # Generate feedback from adjustments
+                        feedback = '; '.join([adj.get('description', '') for adj in info.get('adjustments', [])])
+                        if not feedback:
+                            feedback = "See adjustments for details"
+
                         components[name] = ComponentFeedback(
                             score=info.get('score', 0),
                             max_score=info.get('max_score', 0),
-                            feedback=info.get('feedback', '')
+                            feedback=feedback,
+                            adjustments=adjustments if adjustments else None
                         )
 
                     return GradingResult(
@@ -284,11 +305,23 @@ Return your evaluation as a JSON object with this structure:
     "total_score": <sum of all component scores>,
     "max_score": {sum(c.max_points for c in criteria)},
     "components": {{
-        {', '.join([f'"{c.name}": {{"score": <0-{c.max_points}>, "max_score": {c.max_points}, "feedback": "<specific feedback>"}}'
+        {', '.join([f'"{c.name}": {{"score": <0-{c.max_points}>, "max_score": {c.max_points}, "adjustments": [<list of adjustments>]}}'
                    for c in criteria])}
     }},
     "comment": "<overall feedback comment for the student>"
 }}
+
+Each component MUST have:
+- "feedback": A clear explanation of what the student did well or needs to improve
+- "adjustments": An array of score changes (can be empty if full credit)
+
+Only create adjustments when deducting points (score_impact < 0):
+{{"name": "<adjustment-name>", "description": "<specific issue>", "score_impact": <negative value>}}
+
+Examples:
+- Full credit: "feedback": "Well-defined research question about ferris wheel heights", "adjustments": []
+- No credit: "feedback": "No research question provided", "adjustments": [{{"name": "missing-question", "description": "Required question not found in submission", "score_impact": -0.5}}]
+- Partial credit: "feedback": "Question provided but lacks clarity", "adjustments": [{{"name": "vague-question", "description": "Question needs more specificity", "score_impact": -0.25}}]
 
 STUDENT SUBMISSION:
 {submission}"""

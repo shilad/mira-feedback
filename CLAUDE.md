@@ -26,6 +26,9 @@ grade-batch -s hw/2_redacted/ -r rubric.md --max-threads 8 --model gpt-4
 
 # Save summary to specific location
 grade-batch -s hw/2_redacted/ -r rubric.md --summary grading_results.yaml
+
+# Review and edit AI-generated feedback (human-in-the-loop web interface)
+grade-review --workdir hw/
 ```
 
 ### Development Setup

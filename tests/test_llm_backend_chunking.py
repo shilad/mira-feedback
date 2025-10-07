@@ -56,61 +56,58 @@ class TestLLMBackendChunking:
         assert "persons" in result
     
     def test_chunking_with_multiple_lines(self, mock_pipeline):
-        """Test chunking with multiple lines."""
+        """Test that LLMBackend processes text without chunking (chunking is now in LocalAnonymizer)."""
         backend = LLMBackend(max_input_tokens=10)
-        
-        # Mock to track chunks processed
+
+        # Mock to track calls
         chunks_processed = []
-        
+
         def track_chunks(messages):
             text = messages[1]['content']
-            start = text.find('```txt\n') + 7
-            end = text.find('\n```', start)
+            start = text.find('<content>\n') + 10
+            end = text.find('\n</content>', start)
             chunks_processed.append(text[start:end])
             return [{
                 'generated_text': [
                     {'role': 'assistant', 'content': '{"persons": [], "emails": [], "phones": [], "addresses": [], "organizations": [], "credit_cards": [], "ssn": []}'}
                 ]
             }]
-        
+
         backend.pipe = track_chunks
-        
+
         text = "Line one here.\nLine two here.\nLine three here."
         backend.detect_pii(text)
-        
-        # Should create multiple chunks due to token limit
-        assert len(chunks_processed) > 1
+
+        # LLMBackend should process the whole text without chunking
+        assert len(chunks_processed) == 1
+        assert chunks_processed[0] == text
     
     def test_chunking_long_line(self, mock_pipeline):
-        """Test chunking when a single line exceeds max tokens."""
+        """Test that LLMBackend processes long lines without chunking (chunking is now in LocalAnonymizer)."""
         backend = LLMBackend(max_input_tokens=5)
-        
+
         chunks_processed = []
-        
+
         def track_chunks(messages):
             text = messages[1]['content']
-            start = text.find('```txt\n') + 7
-            end = text.find('\n```', start)
+            start = text.find('<content>\n') + 10
+            end = text.find('\n</content>', start)
             chunks_processed.append(text[start:end])
             return [{
                 'generated_text': [
                     {'role': 'assistant', 'content': '{"persons": [], "emails": [], "phones": [], "addresses": [], "organizations": [], "credit_cards": [], "ssn": []}'}
                 ]
             }]
-        
+
         backend.pipe = track_chunks
-        
+
         # This line has more than 5 tokens
         long_line = "This is a very long line that definitely exceeds the token limit"
         backend.detect_pii(long_line)
-        
-        # Should be split into multiple chunks
-        assert len(chunks_processed) > 1
-        
-        # All words should appear somewhere
-        all_text = ' '.join(chunks_processed)
-        for word in long_line.split():
-            assert word in all_text
+
+        # LLMBackend should process the whole text without chunking
+        assert len(chunks_processed) == 1
+        assert chunks_processed[0] == long_line
     
     def test_chunking_with_empty_lines(self, mock_pipeline):
         """Test chunking handles empty lines correctly."""
@@ -144,31 +141,35 @@ class TestLLMBackendChunking:
         assert "Third line" in combined
     
     def test_merge_pii_results(self, mock_pipeline):
-        """Test merging PII results from multiple chunks."""
-        backend = LLMBackend()
-        
-        # Create sample results from different chunks
-        result1 = {
-            "persons": ["John Doe", "Jane Smith"],
-            "emails": ["john@example.com"],
-            "phones": [],
-            "addresses": ["123 Main St"],
-            "organizations": ["Acme Corp"],
-            "credit_cards": [],
-            "ssn": []
-        }
-        
-        result2 = {
-            "persons": ["Jane Smith", "Bob Wilson"],  # Jane Smith is duplicate
-            "emails": ["jane@example.com"],
-            "phones": ["555-1234"],
-            "addresses": [],
-            "organizations": ["Acme Corp", "Tech Inc"],  # Acme Corp is duplicate
-            "credit_cards": [],
-            "ssn": ["123-45-6789"]
-        }
-        
-        merged = backend._merge_pii_results([result1, result2])
+        """Test merging PII results - now done in LocalAnonymizer."""
+        from shilads_helpers.libs.local_anonymizer.anonymizer import LocalAnonymizer
+
+        # Patch the backend to avoid loading models
+        with patch('shilads_helpers.libs.local_anonymizer.anonymizer.LLMBackend'):
+            anonymizer = LocalAnonymizer()
+
+            # Create sample results from different chunks
+            result1 = {
+                "persons": ["John Doe", "Jane Smith"],
+                "emails": ["john@example.com"],
+                "phones": [],
+                "addresses": ["123 Main St"],
+                "organizations": ["Acme Corp"],
+                "credit_cards": [],
+                "ssn": []
+            }
+
+            result2 = {
+                "persons": ["Jane Smith", "Bob Wilson"],  # Jane Smith is duplicate
+                "emails": ["jane@example.com"],
+                "phones": ["555-1234"],
+                "addresses": [],
+                "organizations": ["Acme Corp", "Tech Inc"],  # Acme Corp is duplicate
+                "credit_cards": [],
+                "ssn": ["123-45-6789"]
+            }
+
+            merged = anonymizer._merge_pii_results([result1, result2])
         
         # Check that duplicates are removed
         assert len(merged["persons"]) == 3  # John Doe, Jane Smith, Bob Wilson
@@ -190,75 +191,65 @@ class TestLLMBackendChunking:
         assert merged["ssn"] == ["123-45-6789"]
     
     def test_merge_pii_results_empty(self, mock_pipeline):
-        """Test merging empty results."""
-        backend = LLMBackend()
-        
-        empty_result = {
-            "persons": [],
-            "emails": [],
-            "phones": [],
-            "addresses": [],
-            "organizations": [],
-            "credit_cards": [],
-            "ssn": []
-        }
-        
-        merged = backend._merge_pii_results([empty_result, empty_result])
+        """Test merging empty results - now done in LocalAnonymizer."""
+        from shilads_helpers.libs.local_anonymizer.anonymizer import LocalAnonymizer
+
+        # Patch the backend to avoid loading models
+        with patch('shilads_helpers.libs.local_anonymizer.anonymizer.LLMBackend'):
+            anonymizer = LocalAnonymizer()
+
+            empty_result = {
+                "persons": [],
+                "emails": [],
+                "phones": [],
+                "addresses": [],
+                "organizations": [],
+                "credit_cards": [],
+                "ssn": []
+            }
+
+            merged = anonymizer._merge_pii_results([empty_result, empty_result])
         
         # All categories should be empty
         for category in merged:
             assert merged[category] == []
     
     def test_detect_pii_with_chunking(self, mock_pipeline):
-        """Test that detect_pii properly chunks large text."""
+        """Test that detect_pii processes text without chunking (chunking is now in LocalAnonymizer)."""
         backend = LLMBackend(max_input_tokens=10)
-        
+
         # Create a mock that tracks how many times the LLM is called
         call_count = 0
         chunk_texts = []
-        
+
         def mock_pipe_response(messages):
             nonlocal call_count, chunk_texts
             call_count += 1
             # Extract the text being analyzed from the user message
             user_msg = messages[1]['content']
-            start = user_msg.find('```txt\n') + 7
-            end = user_msg.find('\n```', start)
+            start = user_msg.find('<content>\n') + 10
+            end = user_msg.find('\n</content>', start)
             chunk_texts.append(user_msg[start:end])
-            
+
             return [{
                 'generated_text': [
                     {'role': 'assistant', 'content': f'{{"persons": ["Person{call_count}"], "emails": [], "phones": [], "addresses": [], "organizations": [], "credit_cards": [], "ssn": []}}'}
                 ]
             }]
-        
+
         backend.pipe = mock_pipe_response
-        
-        # Long text that will be chunked
+
+        # Long text that would have been chunked in old version
         long_text = " ".join(["Word" + str(i) for i in range(50)])  # 50 words
-        
+
         result = backend.detect_pii(long_text)
+
+        # Should have called the LLM only once (no chunking in LLMBackend)
+        assert call_count == 1
         
-        # Should have called the LLM multiple times (once per chunk)
-        assert call_count > 1
-        
-        # Results should be merged
-        assert len(result["persons"]) == call_count
-        
-        # Verify chunks had overlap by checking for repeated words
-        # Note: The first few chunks might not have overlap if they're very small
-        overlaps_found = 0
-        for i in range(1, len(chunk_texts)):
-            prev_words = set(chunk_texts[i-1].split()[-backend.lookback_words:])
-            curr_words = set(chunk_texts[i].split())  # Check entire chunk for overlap words
-            # Check if there's overlap
-            if prev_words and curr_words:
-                overlap = prev_words.intersection(curr_words)
-                if len(overlap) > 0:
-                    overlaps_found += 1
-        
-        # At least some chunks should have overlap
-        assert overlaps_found > 0, "No overlap found between any chunks"
+        # Results should contain one person (from single LLM call)
+        assert len(result["persons"]) == 1
+        assert result["persons"][0] == "Person1"
     
     def test_detect_pii_no_chunking_needed(self, mock_pipeline):
         """Test that small text is not chunked unnecessarily."""

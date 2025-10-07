@@ -52,6 +52,8 @@ def mock_llm_backend():
             "credit_cards": [],
             "ssn": []
         }
+        # Add num_tokens method that returns a simple token count
+        mock_instance.num_tokens.return_value = 10
         mock.return_value = mock_instance
         yield mock_instance
 

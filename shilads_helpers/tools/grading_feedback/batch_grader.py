@@ -47,14 +47,28 @@ class BatchGradingResult:
         if self.error_message:
             data['error_message'] = self.error_message
         if self.grading_result:
-            data['components'] = {
-                name: {
+            components_dict = {}
+            for name, feedback in self.grading_result.components.items():
+                component_data = {
                     'score': feedback.score,
                     'max_score': feedback.max_score,
                     'feedback': feedback.feedback
                 }
-                for name, feedback in self.grading_result.components.items()
-            }
+                # Convert adjustments to plain dicts if present
+                if feedback.adjustments:
+                    component_data['adjustments'] = [
+                        {
+                            'name': adj.name,
+                            'description': adj.description,
+                            'score_impact': adj.score_impact
+                        }
+                        for adj in feedback.adjustments
+                    ]
+                else:
+                    component_data['adjustments'] = None
+                components_dict[name] = component_data
+
+            data['components'] = components_dict
             data['comment'] = self.grading_result.comment
         return data
 
@@ -132,8 +146,20 @@ class BatchGrader:
         Returns:
             BatchGradingResult with grading outcome
         """
-        student_id = submission_dir.name
-        LOG.debug(f"Grading submission: {student_id}")
+        # Extract student ID from directory name
+        # Handle pattern like: REDACTED_PERSON10_325229_assignsubmission_file
+        dir_name = submission_dir.name
+        if dir_name.startswith("REDACTED_PERSON"):
+            # Extract just the REDACTED_PERSON{id} part
+            parts = dir_name.split("_")
+            if len(parts) >= 2:
+                student_id = f"{parts[0]}_{parts[1]}"  # e.g., REDACTED_PERSON10
+            else:
+                student_id = dir_name
+        else:
+            student_id = dir_name
+
+        LOG.debug(f"Grading submission: {student_id} (dir: {dir_name})")
 
         try:
             # Create a new grader instance for this submission
@@ -185,8 +211,8 @@ class BatchGrader:
             LOG.debug(f"Graded {student_id}: {grading_result.total_score}/{grading_result.max_score}")
 
             return BatchGradingResult(
-                submission_dir=str(submission_dir),
-                student_id=student_id,
+                submission_dir=dir_name,  # Keep original directory name for reference
+                student_id=student_id,      # Use extracted student ID for grouping
                 total_score=grading_result.total_score,
                 max_score=grading_result.max_score,
                 success=True,
@@ -196,8 +222,8 @@ class BatchGrader:
         except Exception as e:
             LOG.error(f"Error grading {student_id}: {e}")
             return BatchGradingResult(
-                submission_dir=str(submission_dir),
-                student_id=student_id,
+                submission_dir=dir_name,  # Keep original directory name for reference
+                student_id=student_id,      # Use extracted student ID for grouping
                 total_score=0,
                 max_score=sum(c.max_points for c in rubric_criteria),
                 success=False,

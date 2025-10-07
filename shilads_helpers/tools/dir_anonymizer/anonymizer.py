@@ -148,8 +148,8 @@ class DirectoryAnonymizer:
             # Check if we've seen this name before
             if name_part not in self.anonymizer.entity_memory:
                 # Generate a new tag for this person
-                self.anonymizer.entity_counters['persons'] += 1
-                tag = f"REDACTED_PERSON{self.anonymizer.entity_counters['persons']}"
+                self.anonymizer.entity_counters['PERSON'] += 1
+                tag = f"REDACTED_PERSON{self.anonymizer.entity_counters['PERSON']}"
                 self.anonymizer.entity_memory[name_part] = tag
             else:
                 tag = self.anonymizer.entity_memory[name_part]

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grading Review Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ range(10000, 99999) | random }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-graduation-cap"></i> Grading Review Interface</h1>
+            <div class="header-stats">
+                <span class="stat-item">Total: <span id="stat-total-inline">-</span></span>
+                <span class="stat-item">Avg: <span id="stat-avg-inline">-</span></span>
+                <span class="stat-item">Edited: <span id="stat-edited-inline">-</span></span>
+                <span class="stat-item">Range: <span id="stat-range-inline">-</span></span>
+            </div>
+            <div class="header-actions">
+                <button id="save-btn" class="btn btn-primary" title="Save changes">
+                    <i class="fas fa-save"></i> Save
+                </button>
+                <button id="rubric-btn" class="btn btn-secondary" title="View rubric">
+                    <i class="fas fa-book"></i> Rubric
+                </button>
+            </div>
+        </header>
+
+        <!-- Main content area -->
+        <div class="main-content">
+            <!-- Left sidebar: Submissions list -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Submissions</h2>
+                    <div class="filter-controls">
+                        <input type="text" id="search-box" placeholder="Search students..." class="search-input">
+                        <select id="filter-select" class="filter-select">
+                            <option value="all">All</option>
+                            <option value="edited">Edited</option>
+                            <option value="unedited">Not Edited</option>
+                            <option value="low-score">Low Score</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="submissions-list" class="submissions-list">
+                    <div class="loading">Loading submissions...</div>
+                </div>
+            </aside>
+
+            <!-- Center: Split pane layout -->
+            <main class="editor-area">
+                <div id="no-selection" class="no-selection">
+                    <i class="fas fa-arrow-left"></i>
+                    <p>Select a submission to review</p>
+                </div>
+
+                <div id="editor-content" class="editor-content split-pane" style="display: none;">
+                    <!-- Left pane: Feedback -->
+                    <div class="feedback-pane">
+                        <div class="editor-header">
+                            <h2 id="student-name" class="student-name"></h2>
+                            <div class="score-display">
+                                <span id="current-score" class="current-score"></span>
+                                <span class="score-separator">/</span>
+                                <span id="max-score" class="max-score"></span>
+                            </div>
+                            <div class="editor-actions-inline">
+                                <button id="update-btn" class="btn btn-success">
+                                    Update <i class="fas fa-check"></i>
+                                </button>
+                                <button id="next-btn" class="btn btn-primary">
+                                    Next <i class="fas fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="components-section">
+                            <div id="components-container"></div>
+                        </div>
+
+                        <div class="overall-section">
+                            <h3>Other Comments</h3>
+                            <textarea id="overall-comment" class="comment-textarea" rows="3" placeholder="Additional comments not covered by adjustments above..."></textarea>
+                            <div class="text-info">
+                                <small class="char-count"><span id="comment-chars">0</span> characters</small>
+                                <small class="auto-save-indicator" id="auto-save-indicator"></small>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right pane: Files -->
+                    <div class="files-pane">
+                        <div class="files-container">
+                            <div class="files-header">
+                                <h3>Submission Files</h3>
+                                <div class="files-actions">
+                                    <button id="expand-all-btn" class="btn btn-small btn-secondary">
+                                        <i class="fas fa-expand"></i> Expand All
+                                    </button>
+                                    <button id="collapse-all-btn" class="btn btn-small btn-secondary">
+                                        <i class="fas fa-compress"></i> Collapse All
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="files-list" class="files-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+
+        <!-- Rubric Modal -->
+        <div id="rubric-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-book"></i> Grading Rubric</h3>
+                    <button class="close-modal" id="close-rubric">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="rubric-content" class="rubric-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="{{ url_for('static', filename='app.js') }}?v={{ range(10000, 99999) | random }}"></script>
+</body>
+</html>
