@@ -363,7 +363,7 @@ Check `1_prep/moodle_grades.csv` - all enrolled students should be listed.
 ### Performance Expectations
 
 For 25 submissions:
-- Prep-moodle: ~6 minutes (with anonymization)
+- Prep-moodle: ~30 seconds (with anonymization)
 - Batch grading: ~2 minutes (8 threads)
 - Review interface: Instant
 - Restoration: ~30 seconds
