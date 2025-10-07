@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a collection of Python utilities and scripts for academic (Macalester CS/DS) and industry (Indeed AI) work. The project uses `uv` for package management and is structured as a proper Python package named `shilads_helpers`.
+MIRA (Mentor-Informed Review Assistant) - AI-assisted grading with human review. The project uses `uv` for package management and is structured as a Python package.
 
 ## Common Commands
 
 ### Grading Commands
-**📚 Complete Grading Guide:** See [feedback/GRADING_WORKFLOW.md](feedback/GRADING_WORKFLOW.md) for step-by-step instructions, rubric templates, and troubleshooting.
+**📚 Complete Grading Guide:** See [feedback/MIRA_WORKFLOW.md](feedback/MIRA_WORKFLOW.md) for step-by-step instructions, rubric templates, and troubleshooting.
 
 **IMPORTANT:** Always use the `2_redacted` directory when grading to protect student privacy. Never grade from `0_submitted` or `1_prep` directories.
 
@@ -43,8 +43,8 @@ source .venv/bin/activate
 # Install package in editable mode with dependencies
 uv pip install -e .
 
-# For local LLM anonymization with gated models, authenticate with Hugging Face
-huggingface-cli login  # You'll need a token from https://huggingface.co/settings/tokens
+# Download spaCy model for Presidio PII detection
+python -m spacy download en_core_web_lg
 ```
 
 ### Testing
@@ -71,7 +71,6 @@ pytest tests/test_dir_anonymizer.py::test_custom_config -v
 
 # Run chunking tests
 pytest tests/test_text_chunker.py -v
-pytest tests/test_llm_backend_chunking.py -v
 
 # Run only integration tests (API tests)
 pytest -m "integration_test"
@@ -85,7 +84,7 @@ pytest -m "slow_integration_test"
 The test suite is organized with pytest markers:
 - **Fast tests** (default): Unit tests and quick integration tests that run in ~15 seconds total
 - **`integration_test`**: Tests that require API keys (OpenAI) but run relatively quickly
-- **`slow_integration_test`**: Tests that take 40+ seconds each (LLM model loading, heavy processing)
+- **`slow_integration_test`**: Tests that take 40+ seconds each (heavy processing)
 
 ### Linting
 ```bash
@@ -120,8 +119,7 @@ Main tool in `tools/dir_anonymizer/`:
 ### Local Anonymizer Library
 In `libs/local_anonymizer/`:
 - **anonymizer.py**: LocalAnonymizer class with entity memory and reset functionality
-- **llm_backend.py**: LLM integration with automatic text chunking for large files
-- **regex_backend.py**: Fallback regex patterns for PII detection
+- **presidio_backend.py**: Microsoft Presidio PII detection with spaCy NER models
 
 ### Text Processing Utilities
 In `libs/`:
@@ -153,11 +151,8 @@ from shilads_helpers.tools.dir_anonymizer.anonymizer import DirectoryAnonymizer
 
 ## Key Dependencies
 - **uv**: Fast package manager (replaces pip)
-- **transformers**: Hugging Face library for local LLM models
-- **torch**: PyTorch for model inference
-- **huggingface-hub**: For authenticated model access
-- **sentencepiece**: Tokenizer for certain models
-- **protobuf**: Required for some model formats
+- **presidio-analyzer**: Microsoft Presidio for PII detection
+- **spacy**: NLP library for entity recognition (used by Presidio)
 - **PyYAML**: Configuration file handling
 - **tqdm**: Progress bars
 - **faker**: Fallback for generating replacement data
@@ -187,16 +182,17 @@ value = get_config("anonymizer.file_types", config)  # Dot notation access
 
 ## Important Implementation Notes
 
-### Anonymizer Improvements (Recent Changes)
-1. **Removed anonLLM dependency**: Now uses only local LLM models via Hugging Face transformers
+### Anonymizer Implementation (Presidio-Based)
+1. **Presidio PII detection**: Uses Microsoft Presidio with spaCy for accurate entity recognition
 2. **Entity memory**: LocalAnonymizer remembers entities and reuses tags (John Doe always becomes REDACTED_PERSON1)
 3. **Text chunking**: Automatically handles large files by chunking with overlap
 4. **Filename anonymization**: Uses systematic naming (FILE_0001, DIR_0001) instead of random words
 5. **Accuracy testing**: Standalone CLI command for testing PII detection accuracy
 6. **Required arguments**: `anonymize` command now requires both input and output directories
+7. **Single backend**: Simplified to use only Presidio backend (removed LLM and OpenPipe backends)
 
 ### Testing Strategy
-- Unit tests use mocks to avoid downloading LLM models
+- Unit tests use mocks to avoid loading Presidio models in every test
 - Accuracy tests can run against YAML test cases
 - Text chunking has comprehensive test coverage
 - All imports should be absolute from `shilads_helpers` package

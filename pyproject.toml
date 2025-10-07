@@ -1,7 +1,7 @@
 [project]
-name = "shilads-helpers"
+name = "mira-grader"
 version = "0.1.0"
-description = "Helper scripts and tools for academic and industry work"
+description = "MIRA - AI-assisted grading with human review"
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [
@@ -10,12 +10,6 @@ authors = [
 dependencies = [
     "PyYAML>=6.0",
     "tqdm>=4.60.0",
-    "torch>=2.0.0",
-    "transformers>=4.36.0",
-    "accelerate>=0.25.0",
-    "huggingface-hub>=0.19.0",
-    "sentencepiece>=0.2.0",
-    "protobuf>=6.0.0",
     "faker>=20.0.0",
     "html-to-markdown>=1.0.0",
     "pandas>=2.0.0",
@@ -26,6 +20,8 @@ dependencies = [
     "flask-cors>=4.0.0",
     "rich>=13.0.0",
     "click>=8.0.0",
+    "presidio-analyzer>=2.2.0",
+    "spacy>=3.0.0",
 ]
 
 [project.optional-dependencies]

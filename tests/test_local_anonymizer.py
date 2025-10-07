@@ -38,9 +38,9 @@ def get_test_config() -> ConfigType:
 
 
 @pytest.fixture
-def mock_llm_backend():
-    """Mock LLM backend to avoid model downloads during tests."""
-    with patch('shilads_helpers.libs.local_anonymizer.anonymizer.LLMBackend') as mock:
+def mock_presidio_backend():
+    """Mock Presidio backend to avoid model loading during tests."""
+    with patch('shilads_helpers.libs.local_anonymizer.anonymizer.PresidioBackend') as mock:
         # Create a mock instance that returns empty PII detection
         mock_instance = Mock()
         mock_instance.detect_pii.return_value = {
@@ -120,8 +120,8 @@ IP Address: 192.168.1.100
 
 class TestLocalAnonymizer:
     """Test the LocalAnonymizer class."""
-    
-    def test_entity_tag_generation(self, mock_llm_backend):
+
+    def test_entity_tag_generation(self, mock_presidio_backend):
         """Test that entity tags are generated correctly."""
         anonymizer = LocalAnonymizer()
         
@@ -134,7 +134,7 @@ class TestLocalAnonymizer:
         assert "john.smith@example.com" not in anon_text
         assert "555-123-4567" not in anon_text
         
-    def test_consistent_entity_tagging(self, mock_llm_backend):
+    def test_consistent_entity_tagging(self, mock_presidio_backend):
         """Test that same entity gets same tag."""
         anonymizer = LocalAnonymizer()
         
@@ -147,7 +147,7 @@ class TestLocalAnonymizer:
         # Same email should get same tag
         assert anon_text.count("REDACTED_EMAIL1") == 2
         
-    def test_multiple_entity_types(self, mock_llm_backend):
+    def test_multiple_entity_types(self, mock_presidio_backend):
         """Test detection of multiple PII types."""
         anonymizer = LocalAnonymizer()
         
@@ -168,7 +168,7 @@ class TestLocalAnonymizer:
         assert "REDACTED_CREDITCARD" in anon_text
         assert "REDACTED_IP" in anon_text
         
-    def test_ssn_not_confused_with_phone(self, mock_llm_backend):
+    def test_ssn_not_confused_with_phone(self, mock_presidio_backend):
         """Test that SSN is correctly identified and not confused with phone."""
         anonymizer = LocalAnonymizer()
         
@@ -180,7 +180,7 @@ class TestLocalAnonymizer:
         assert "123-45-6789" not in anon_text
         assert "555-123-4567" not in anon_text
         
-    def test_memory_and_reset(self, mock_llm_backend):
+    def test_memory_and_reset(self, mock_presidio_backend):
         """Test that anonymizer remembers entities and can be reset."""
         anonymizer = LocalAnonymizer()
         
@@ -208,11 +208,11 @@ class TestLocalAnonymizer:
 
 class TestLocalDeanonymizer:
     """Test the LocalDeanonymizer class."""
-    
-    def test_basic_deanonymization(self, mock_llm_backend):
+
+    def test_basic_deanonymization(self, mock_presidio_backend):
         """Test basic deanonymization."""
         # Configure mock to detect PII
-        mock_llm_backend.detect_pii.return_value = {
+        mock_presidio_backend.detect_pii.return_value = {
             "persons": [],
             "emails": ["john@example.com"],
             "phones": ["555-123-4567"],
@@ -223,7 +223,7 @@ class TestLocalDeanonymizer:
         }
 
         anonymizer = LocalAnonymizer()
-        anonymizer.llm_backend = mock_llm_backend
+        anonymizer.backend = mock_presidio_backend
         deanonymizer = LocalDeanonymizer()
 
         original = "Contact john@example.com or call 555-123-4567"
@@ -232,10 +232,10 @@ class TestLocalDeanonymizer:
 
         assert restored == original
         
-    def test_complex_deanonymization(self, mock_llm_backend):
+    def test_complex_deanonymization(self, mock_presidio_backend):
         """Test deanonymization with multiple occurrences."""
         # Configure mock to detect PII
-        mock_llm_backend.detect_pii.return_value = {
+        mock_presidio_backend.detect_pii.return_value = {
             "persons": [],
             "emails": ["john@example.com", "jane@example.com"],
             "phones": [],
@@ -246,7 +246,7 @@ class TestLocalDeanonymizer:
         }
 
         anonymizer = LocalAnonymizer()
-        anonymizer.llm_backend = mock_llm_backend
+        anonymizer.backend = mock_presidio_backend
         deanonymizer = LocalDeanonymizer()
 
         original = """
@@ -263,8 +263,8 @@ class TestLocalDeanonymizer:
 
 class TestDirectoryAnonymization:
     """Test directory-level anonymization."""
-    
-    def test_directory_anonymization(self, temp_test_dir, mock_llm_backend):
+
+    def test_directory_anonymization(self, temp_test_dir, mock_presidio_backend):
         """Test anonymizing an entire directory."""
         output_dir = tempfile.mkdtemp()
         
@@ -301,15 +301,15 @@ class TestDirectoryAnonymization:
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
     
-    @pytest.mark.skip(reason="Filename anonymization uses actual LLM backend, tested in integration tests")
-    def test_filename_anonymization(self, temp_test_dir, mock_llm_backend):
+    @pytest.mark.skip(reason="Filename anonymization uses actual Presidio backend, tested in integration tests")
+    def test_filename_anonymization(self, temp_test_dir, mock_presidio_backend):
         """Test anonymizing filenames."""
-        # This test is skipped because DirectoryAnonymizer creates its own LLMBackend
+        # This test is skipped because DirectoryAnonymizer creates its own PresidioBackend
         # instance and doesn't use the mocked one. Filename anonymization is properly
         # tested in the integration tests (test_dir_anonymizer.py)
         pass
     
-    def test_restoration(self, temp_test_dir, mock_llm_backend):
+    def test_restoration(self, temp_test_dir, mock_presidio_backend):
         """Test restoration of anonymized directory."""
         anon_dir = tempfile.mkdtemp()
         restored_dir = tempfile.mkdtemp()
@@ -349,7 +349,7 @@ class TestDirectoryAnonymization:
             shutil.rmtree(restored_dir, ignore_errors=True)
     
     
-    def test_file_type_filtering(self, temp_test_dir, mock_llm_backend):
+    def test_file_type_filtering(self, temp_test_dir, mock_presidio_backend):
         """Test that only configured file types are processed."""
         output_dir = tempfile.mkdtemp()
         
@@ -389,8 +389,8 @@ class TestDirectoryAnonymization:
 
 class TestEntityTagFormats:
     """Test specific entity tag format requirements."""
-    
-    def test_entity_tag_format(self, mock_llm_backend):
+
+    def test_entity_tag_format(self, mock_presidio_backend):
         """Test that entity tags follow the correct format."""
         anonymizer = LocalAnonymizer()
         
@@ -418,7 +418,7 @@ class TestEntityTagFormats:
         assert any('REDACTED_CREDITCARD' in tag for tag in tags)
         assert any('REDACTED_IP' in tag for tag in tags)
     
-    def test_incremental_numbering(self, mock_llm_backend):
+    def test_incremental_numbering(self, mock_presidio_backend):
         """Test that entity numbers increment correctly."""
         anonymizer = LocalAnonymizer()
         

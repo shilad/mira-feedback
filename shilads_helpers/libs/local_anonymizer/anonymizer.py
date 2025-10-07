@@ -1,11 +1,9 @@
-"""Local LLM-based anonymizer implementation."""
+"""Presidio-based anonymizer implementation."""
 
 import re
 import logging
 from typing import Dict, Tuple, Any, Optional, List
 from collections import defaultdict
-from .llm_backend import LLMBackend
-from .openpipe_backend import OpenPipeBackend
 from .presidio_backend import PresidioBackend
 from shilads_helpers.libs.text_chunker import chunk_text
 
@@ -13,8 +11,8 @@ LOG = logging.getLogger(__name__)
 
 
 class LocalAnonymizer:
-    """Anonymize text using local LLM for PII detection."""
-    
+    """Anonymize text using Presidio for PII detection."""
+
     @classmethod
     def create_from_config(cls, config: Dict[str, Any]) -> "LocalAnonymizer":
         """Create a LocalAnonymizer instance from configuration.
@@ -26,34 +24,21 @@ class LocalAnonymizer:
             Configured LocalAnonymizer instance
         """
         local_config = config.get('local_model', {})
-        # Extract presidio config if present
         presidio_config = local_config.get('presidio', {})
 
         return cls(
-            model_name=local_config.get('name'),
-            device=local_config.get('device', 'cpu'),
-            system_prompt=local_config.get('system_prompt'),
-            max_input_tokens=local_config.get('max_input_tokens', 100),
-            backend=local_config.get('backend', 'llm'),
+            max_input_tokens=local_config.get('max_input_tokens', 1000),
             presidio_config=presidio_config
         )
-    
-    def __init__(self, model_name: Optional[str] = None, device: str = "cpu", system_prompt: Optional[str] = None, max_input_tokens: int = 100, backend: str = "llm", presidio_config: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, max_input_tokens: int = 1000, presidio_config: Optional[Dict[str, Any]] = None):
         """Initialize the local anonymizer.
 
         Args:
-            model_name: Hugging Face model name (default: Phi-3-mini)
-            device: Device to run on ('cpu' or 'cuda')
-            system_prompt: Optional custom system prompt for PII detection
-            max_input_tokens: Maximum tokens per chunk sent to LLM
-            backend: Which backend to use ('llm' for Hugging Face LLM, 'openpipe' for OpenPipe models, 'presidio' for Microsoft Presidio)
-            presidio_config: Configuration dictionary for Presidio backend (language, confidence_threshold, spacy_model)
+            max_input_tokens: Maximum tokens per chunk sent to backend
+            presidio_config: Configuration dictionary for Presidio backend (language, confidence_threshold, nlp_configuration)
         """
-        self.model_name = model_name
-        self.device = device
-        self.system_prompt = system_prompt
         self.max_input_tokens = max_input_tokens
-        self.backend_type = backend
 
         # Track entity counters for generating tags
         self.entity_counters = defaultdict(int)
@@ -61,26 +46,16 @@ class LocalAnonymizer:
         # Track entity to tag mappings for consistency
         self.entity_memory = {}  # Maps original PII text to assigned tag
 
-        # Initialize backend based on selection
-        if backend == "openpipe":
-            self.backend = OpenPipeBackend(device=device)
-            LOG.info(f"LocalAnonymizer initialized with OpenPipe backend, device: {device}")
-        elif backend == "presidio":
-            # Use provided config or defaults
-            if presidio_config is None:
-                presidio_config = {}
+        # Initialize Presidio backend
+        if presidio_config is None:
+            presidio_config = {}
 
-            self.backend = PresidioBackend(
-                language=presidio_config.get('language', 'en'),
-                confidence_threshold=presidio_config.get('confidence_threshold', 0.0),
-                nlp_configuration=presidio_config.get('nlp_configuration')
-            )
-            LOG.info(f"LocalAnonymizer initialized with Presidio backend (lang={presidio_config.get('language', 'en')}, confidence={presidio_config.get('confidence_threshold', 0.0)})")
-        else:
-            # Default to LLM backend
-            kwargs = { 'model_name': self.model_name } if self.model_name else {}
-            self.backend = LLMBackend(device=device, max_input_tokens=max_input_tokens, **kwargs)
-            LOG.info(f"LocalAnonymizer initialized with LLM backend model: {self.model_name}, max_input_tokens: {max_input_tokens}")
+        self.backend = PresidioBackend(
+            language=presidio_config.get('language', 'en'),
+            confidence_threshold=presidio_config.get('confidence_threshold', 0.0),
+            nlp_configuration=presidio_config.get('nlp_configuration')
+        )
+        LOG.info(f"LocalAnonymizer initialized with Presidio backend (lang={presidio_config.get('language', 'en')}, confidence={presidio_config.get('confidence_threshold', 0.0)})")
     
     def anonymize_data(self, text: str) -> Tuple[str, Dict[str, str]]:
         """Anonymize PII in text.
@@ -266,7 +241,7 @@ class LocalAnonymizer:
         chunk_results = []
         for i, chunk in enumerate(chunks):
             LOG.debug(f"Processing chunk {i+1}/{len(chunks)}")
-            result = self.backend.detect_pii(chunk, self.system_prompt)
+            result = self.backend.detect_pii(chunk)
             chunk_results.append(result)
 
         # Merge results from all chunks

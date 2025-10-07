@@ -53,7 +53,7 @@ Next steps in Claude Code:
     args.workdir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 70)
-    print("  GRADING WITH CLAUDE CODE")
+    print("  MIRA - GRADING WITH CLAUDE")
     print("=" * 70)
     print(f"Zip file: {args.zip_file}")
     print(f"Work directory: {args.workdir}")

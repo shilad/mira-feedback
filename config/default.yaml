@@ -118,15 +118,8 @@ anonymizer:
   # Custom patterns (regex) and their replacements
   custom_patterns: {}
   
-  # Local LLM model configuration
+  # Presidio PII detection configuration
   local_model:
-    # Backend to use: 'llm' (Hugging Face LLM), 'openpipe' (OpenPipe PII models), or 'presidio' (Microsoft Presidio)
-    # backend: "openpipe"  # Using OpenPipe's specialized PII detection models
-    backend: "presidio"  # Fast rule-based detection with Presidio
-
-    # Device to run on: 'cpu', 'cuda', or 'mps'
-    device: "mps"
-
     # Chunking configuration
     max_input_tokens: 1000  # Maximum tokens per chunk
 
@@ -161,11 +154,3 @@ anonymizer:
             - WORK_OF_ART
             - FAC
             - LANGUAGE
-
-
-
-    # Settings for 'llm' backend (commented out since using openpipe)
-    # Hugging Face model name (only used when backend is 'llm')
-#    backend: "llm"  # Using OpenPipe's specialized PII detection models
-#    name: "Qwen/Qwen3-4B-Instruct-2507"
-#    system_prompt: null
