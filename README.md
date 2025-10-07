@@ -23,6 +23,9 @@ uv venv
 source .venv/bin/activate
 uv pip install -e .
 
+# Install claude code (optional, for grade-with-claude, license required)
+npm install -g @anthropic-ai/claude-code
+
 # Download spaCy model for PII detection
 python -m spacy download en_core_web_lg
 
@@ -37,7 +40,7 @@ Generate feedback using the AI-assisted workflow:
 grade-with-claude moodle_download.zip hw/
 ```
 
-Generate feedback for a Moodle submissions in 5 steps:
+Or, if you want to run the steps without Claude, by hand:
 
 ```bash
 # 1. Prepare submissions (creates 3 directories)
