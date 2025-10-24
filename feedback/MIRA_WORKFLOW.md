@@ -25,7 +25,7 @@ anonymize-dir restore hw/2_redacted/ hw/3_restored/ hw/2_redacted/anonymization_
 ```bash
 grade-with-claude --zip moodle.zip --workdir hw/
 ```
-Claude interactively helps create rubric, runs grading, and launches review interface.
+Claude interactively helps create rubric, runs grading, launches review interface, and generates moodle_grades_final.csv.
 
 ---
 
@@ -131,7 +131,12 @@ anonymize-dir restore hw/2_redacted/ hw/3_restored/ \
   hw/2_redacted/anonymization_mapping.json
 ```
 
-3. **Upload to Moodle** - Use `hw/3_restored/moodle_grades_final.csv`
+3. **Update Moodle grades CSV** - Populate grades from YAML into CSV template:
+```bash
+update-moodle-grades --restored-dir hw/3_restored/
+```
+
+4. **Upload to Moodle** - Use `hw/3_restored/moodle_grades_final.csv`
 
 ---
 
@@ -152,6 +157,7 @@ What happens:
 4. Claude runs two-pass grading with calibration
 5. Claude launches the review interface
 6. After you exit, restores real names automatically
+7. Updates moodle_grades.csv with final scores
 
 ### Claude's Workflow
 
@@ -282,6 +288,15 @@ anonymize-dir restore output/ restored/ -m mapping.json
 
 # Test accuracy
 anonymize-dir accuracy
+```
+
+#### Moodle Integration
+```bash
+# Update moodle_grades.csv with scores from feedback.yaml files
+update-moodle-grades --restored-dir hw/3_restored/
+
+# Custom CSV path
+update-moodle-grades -d hw/3_restored/ -c hw/3_restored/custom_grades.csv
 ```
 
 ### Rubric Guidelines

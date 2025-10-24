@@ -34,6 +34,7 @@ dev = [
 [project.scripts]
 anonymize-dir = "mira.tools.dir_anonymizer.cli:main"
 prep-moodle = "mira.tools.moodle_prep.cli:main"
+update-moodle-grades = "mira.tools.moodle_prep.update_grades_cli:main"
 grade-submission = "mira.tools.grading_feedback.cli:main"
 grade-batch = "mira.tools.grading_feedback.batch_cli:main"
 grade-review = "mira.tools.grading_review_interface.cli:main"

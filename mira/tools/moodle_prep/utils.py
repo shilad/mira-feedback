@@ -3,6 +3,7 @@
 import csv
 import json
 import re
+import yaml
 from pathlib import Path
 from typing import Dict, List, Tuple
 import logging
@@ -93,48 +94,53 @@ def parse_moodle_dirname(dirname: str) -> Tuple[str, str, str]:
 
 def generate_grades_csv_from_data(submissions_data: list, output_path: Path) -> Dict[str, str]:
     """Generate moodle_grades.csv from submission data.
-    
+
     Args:
         submissions_data: List of submission records with name, id, type, online_text
         output_path: Path where moodle_grades.csv will be written
-        
+
     Returns:
         Dictionary with statistics about what was processed
     """
     rows = []
     online_text_count = 0
     file_submission_count = 0
-    
+
     for submission in submissions_data:
         row = {
             "Identifier": f"Participant {submission['id']}",
             "Full name": submission['name'],
-            "Online text": submission.get('online_text', ''),
+            "Email address": "",
+            "Status": "",
             "Grade": "",
+            "Maximum grade": "",
+            "Grade can be changed": "",
+            "Last modified (grade)": "",
             "Feedback comments": ""
         }
-        
+
         if submission['type'] == 'onlinetext':
             online_text_count += 1
         else:
             file_submission_count += 1
-        
+
         rows.append(row)
-    
+
     # Write CSV file
     if rows:
-        fieldnames = ["Identifier", "Full name", "Online text", "Grade", "Feedback comments"]
+        fieldnames = ["Identifier", "Full name", "Email address", "Status", "Grade",
+                      "Maximum grade", "Grade can be changed", "Last modified (grade)", "Feedback comments"]
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
-        
+
         LOG.info(f"Generated moodle_grades.csv with {len(rows)} students")
         LOG.info(f"  Online text submissions: {online_text_count}")
         LOG.info(f"  File submissions: {file_submission_count}")
     else:
         LOG.warning("No student submissions found to generate moodle_grades.csv")
-    
+
     return {
         "total_students": len(rows),
         "online_text": online_text_count,
@@ -144,69 +150,59 @@ def generate_grades_csv_from_data(submissions_data: list, output_path: Path) -> 
 
 def generate_grades_csv(submission_dir: Path, output_path: Path) -> Dict[str, str]:
     """Generate moodle_grades.csv from Moodle submission directory structure.
-    
+
     Args:
         submission_dir: Directory containing student submissions
         output_path: Path where moodle_grades.csv will be written
-        
+
     Returns:
         Dictionary with statistics about what was processed
     """
     rows = []
     online_text_count = 0
     file_submission_count = 0
-    
+
     # Scan submission directories
     for item in sorted(submission_dir.iterdir()):
         if item.is_dir():
             student_name, student_id, submission_type = parse_moodle_dirname(item.name)
-            
+
             if student_name and student_id:
                 # Create row for this student
                 row = {
                     "Identifier": f"Participant {student_id}",
                     "Full name": student_name,
-                    "Online text": "",
+                    "Email address": "",
+                    "Status": "",
                     "Grade": "",
+                    "Maximum grade": "",
+                    "Grade can be changed": "",
+                    "Last modified (grade)": "",
                     "Feedback comments": ""
                 }
-                
-                # If this is an online text submission, capture the text
+
                 if submission_type == "onlinetext":
                     online_text_count += 1
-                    # Look for onlinetext.html or onlinetext.md files
-                    for ext in ['.html', '.md', '.txt']:
-                        text_file = item / f"onlinetext{ext}"
-                        if text_file.exists():
-                            try:
-                                content = text_file.read_text(encoding='utf-8', errors='ignore')
-                                # Convert HTML to Markdown if it's an HTML file
-                                if ext == '.html':
-                                    content = convert_html_to_markdown(content)
-                                # Truncate if too long and store in Online text column
-                                row["Online text"] = content[:1000] if len(content) > 1000 else content
-                                break
-                            except Exception as e:
-                                LOG.warning(f"Could not read online text from {text_file}: {e}")
                 else:
                     file_submission_count += 1
-                
+
                 rows.append(row)
-    
+
     # Write CSV file
     if rows:
-        fieldnames = ["Identifier", "Full name", "Online text", "Grade", "Feedback comments"]
+        fieldnames = ["Identifier", "Full name", "Email address", "Status", "Grade",
+                      "Maximum grade", "Grade can be changed", "Last modified (grade)", "Feedback comments"]
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
-        
+
         LOG.info(f"Generated moodle_grades.csv with {len(rows)} students")
         LOG.info(f"  Online text submissions: {online_text_count}")
         LOG.info(f"  File submissions: {file_submission_count}")
     else:
         LOG.warning("No student submissions found to generate moodle_grades.csv")
-    
+
     return {
         "total_students": len(rows),
         "online_text": online_text_count,
@@ -281,3 +277,112 @@ def process_html_files(directory: Path, keep_html: bool = False) -> int:
     
     LOG.info(f"Converted {converted_count} HTML files to Markdown")
     return converted_count
+
+
+def update_grades_csv_from_feedback(restored_dir: Path, csv_path: Path = None) -> Dict[str, any]:
+    """Update moodle_grades.csv with scores from feedback.yaml files.
+
+    Args:
+        restored_dir: Directory containing restored submissions with feedback.yaml files
+        csv_path: Path to moodle_grades.csv (defaults to restored_dir/moodle_grades.csv)
+
+    Returns:
+        Dictionary with statistics about what was updated
+    """
+    if csv_path is None:
+        csv_path = restored_dir / 'moodle_grades_final.csv'
+
+    # First, check if we should copy from the template
+    template_csv = restored_dir.parent / '1_prep' / 'moodle_grades.csv'
+
+    if not csv_path.exists() and template_csv.exists():
+        LOG.info(f"Copying template CSV from {template_csv} to {csv_path}")
+        import shutil
+        shutil.copy(template_csv, csv_path)
+
+    if not csv_path.exists():
+        raise ValueError(f"moodle_grades.csv not found at {csv_path}")
+
+    # Read existing CSV
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+
+    # Statistics
+    stats = {
+        'total_students': len(rows),
+        'updated': 0,
+        'missing_feedback': 0,
+        'errors': []
+    }
+
+    # Create a mapping of student names to submission directories
+    submission_dirs = {}
+    for item in restored_dir.iterdir():
+        if item.is_dir():
+            student_name, student_id, submission_type = parse_moodle_dirname(item.name)
+            if student_name and student_id:
+                submission_dirs[student_name] = item
+
+    # Update each row with feedback data
+    for row in rows:
+        student_name = row.get("Full name", "")
+
+        if not student_name:
+            continue
+
+        # Find the submission directory for this student
+        submission_dir = submission_dirs.get(student_name)
+
+        if not submission_dir:
+            LOG.debug(f"No submission directory found for {student_name}")
+            stats['missing_feedback'] += 1
+            continue
+
+        # Look for feedback.yaml or moodle_feedback.yaml
+        feedback_file = submission_dir / 'feedback.yaml'
+        if not feedback_file.exists():
+            feedback_file = submission_dir / 'moodle_feedback.yaml'
+
+        if not feedback_file.exists():
+            LOG.debug(f"No feedback.yaml or moodle_feedback.yaml found for {student_name}")
+            stats['missing_feedback'] += 1
+            continue
+
+        try:
+            # Read feedback.yaml
+            with open(feedback_file, 'r', encoding='utf-8') as f:
+                feedback_data = yaml.safe_load(f)
+
+            # Extract score and comment
+            total_score = feedback_data.get('total_score', '')
+            comment = feedback_data.get('comment', '')
+
+            # Update the row
+            row['Grade'] = str(total_score) if total_score != '' else ''
+            row['Feedback comments'] = comment
+
+            stats['updated'] += 1
+            LOG.debug(f"Updated grade for {student_name}: {total_score}")
+
+        except Exception as e:
+            LOG.error(f"Error reading feedback for {student_name}: {e}")
+            stats['errors'].append({
+                'student': student_name,
+                'error': str(e)
+            })
+
+    # Write updated CSV
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    LOG.info(f"Updated moodle_grades.csv: {stats['updated']}/{stats['total_students']} students")
+    if stats['missing_feedback'] > 0:
+        LOG.info(f"  {stats['missing_feedback']} students without feedback")
+    if stats['errors']:
+        LOG.warning(f"  {len(stats['errors'])} errors occurred")
+
+    return stats

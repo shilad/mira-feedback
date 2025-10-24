@@ -133,11 +133,28 @@ Next steps in Claude Code:
         sys.exit(1)
 
     print("\n✓ De-anonymization complete!")
+
+    # Step 4: Update moodle_grades.csv
+    print("\n" + "=" * 70)
+    print("Step 4: Updating moodle_grades.csv...")
+    print("=" * 70)
+
+    try:
+        subprocess.run([
+            'update-moodle-grades',
+            '--restored-dir', str(final_dir)
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"\nWarning: Failed to update moodle_grades.csv (exit code {e.returncode})", file=sys.stderr)
+        print("You can manually run: update-moodle-grades --restored-dir " + str(final_dir))
+
+    print("\n✓ Grades CSV updated!")
     print("\n" + "=" * 70)
     print("  GRADING COMPLETE")
     print("=" * 70)
     print(f"\nFinal results with real names: {final_dir}")
     print(f"\nKey files:")
+    print(f"  - {final_dir}/moodle_grades_final.csv (ready for Moodle upload)")
     print(f"  - {final_dir}/grading_results.yaml")
     print(f"  - {final_dir}/STUDENT_NAME_*/moodle_feedback.yaml")
     print("\nReady to upload to Moodle!")
