@@ -1640,3 +1640,20 @@ kbd {
     display: flex;
     gap: 0.5rem;
 }
+
+/* ========================================
+   DEMO MODE: Black out student names
+   Remove or comment out this section after demo
+   ======================================== */
+.student-name {
+    color: transparent !important;
+    background: black !important;
+    text-shadow: none !important;
+}
+
+.submission-item .name {
+    color: transparent !important;
+    background: black !important;
+    text-shadow: none !important;
+}
+/* ======================================== */
