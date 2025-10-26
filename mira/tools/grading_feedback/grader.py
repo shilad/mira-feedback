@@ -35,7 +35,12 @@ def create_grading_agent(configs: ConfigType,
         "in your feedback. Award partial credit where appropriate. "
         "When situational adjustments are provided, identify which situation best "
         "matches the submission and apply the corresponding adjustment. "
-        "Document which adjustment was applied using its name."
+        "Document which adjustment was applied using its name.\n\n"
+        "IMPORTANT: The submissions you receive have been anonymized to protect student privacy. "
+        "You will see tags like REDACTED_PERSON1, REDACTED_EMAIL1, REDACTED_LOCATION1, etc. "
+        "These are placeholders for actual names, emails, and other personally identifiable information. "
+        "Do not be confused by these tags or penalize students for their presence - they are added "
+        "automatically for privacy protection."
     )
 
     return create_agent(
@@ -292,6 +297,11 @@ Return ONLY the JSON list, no other text."""
 
 RUBRIC CRITERIA:
 {criteria_text}
+
+PRIVACY NOTICE:
+The submission below has been anonymized to protect student privacy. Tags like REDACTED_PERSON1,
+REDACTED_EMAIL1, REDACTED_LOCATION1, etc. are placeholders for actual personally identifiable
+information. Do not penalize students for the presence of these tags.
 
 INSTRUCTIONS:
 1. Evaluate the submission against each criterion

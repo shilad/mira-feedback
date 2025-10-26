@@ -1643,17 +1643,24 @@ kbd {
 
 /* ========================================
    DEMO MODE: Black out student names
-   Remove or comment out this section after demo
+   Only applies when body has .demo-mode class
    ======================================== */
-.student-name {
+body.demo-mode .student-name {
     color: transparent !important;
     background: black !important;
     text-shadow: none !important;
 }
 
-.submission-item .name {
+body.demo-mode .submission-item .name {
     color: transparent !important;
     background: black !important;
     text-shadow: none !important;
+}
+
+/* Active button state for demo mode */
+body.demo-mode #demo-mode-btn {
+    background-color: var(--success-color) !important;
+    color: white !important;
+    border-color: var(--success-color) !important;
 }
 /* ======================================== */

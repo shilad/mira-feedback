@@ -6,10 +6,10 @@ MIRA collaborates with an instructor on grading criteria and then drafts feedbac
 ## What MIRA Does
 
 1. **Rubric co-creation** - AI helps you create and refine a rubric for your assignment
-2. **Common mistake calibration** - AI reviews submissions and your rubric to create a *calibrated* rubric that includes common mistakes and scoring adjustments   
-3. **Drafts grading feedback** - AI generates initial feedback based on your rubric
-4. **Provides human review interface** - Web UI for editing all AI-generated feedback
-5. **Protects privacy** - Automatically anonymizes student data during grading
+2. **Common mistake calibration** - AI reviews submissions and your rubric to create a *calibrated* rubric that includes common mistakes and scoring adjustments
+3. **Drafts grading feedback** - AI generates initial feedback based on your rubric (anonymization-aware: AI is informed about REDACTED_* tags to avoid confusion)
+4. **Provides human review interface** - Web UI for editing all AI-generated feedback with demo mode for privacy
+5. **Protects privacy** - Automatically anonymizes student data during grading using Presidio PII detection
 6. **Integrates with Moodle** - Works with standard Moodle export format
 
 ## Installation
@@ -82,6 +82,7 @@ Opens browser with:
 - Editable scores and comments
 - Real-time statistics
 - Export to CSV
+- Demo mode toggle to hide student names (for presentations/screenshots)
 
 #### grade-with-claude
 Interactive grading session with Claude Code:

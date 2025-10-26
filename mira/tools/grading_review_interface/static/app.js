@@ -39,6 +39,12 @@ function setupEventListeners() {
     // Header actions
     document.getElementById('save-btn').addEventListener('click', saveResults);
 
+    // Demo mode toggle
+    document.getElementById('demo-mode-btn')?.addEventListener('click', toggleDemoMode);
+
+    // Initialize demo mode from localStorage
+    initializeDemoMode();
+
     // Search and filter
     document.getElementById('search-box').addEventListener('input', filterSubmissions);
     document.getElementById('filter-select').addEventListener('change', filterSubmissions);
@@ -76,6 +82,30 @@ function setupEventListeners() {
 
     // Setup keyboard shortcuts
     setupKeyboardShortcuts();
+}
+
+// Demo mode functions
+function initializeDemoMode() {
+    // Check localStorage for demo mode preference
+    const demoModeEnabled = localStorage.getItem('demoMode') === 'true';
+    if (demoModeEnabled) {
+        document.body.classList.add('demo-mode');
+    }
+}
+
+function toggleDemoMode() {
+    const body = document.body;
+    const isDemoMode = body.classList.toggle('demo-mode');
+
+    // Save preference to localStorage
+    localStorage.setItem('demoMode', isDemoMode.toString());
+
+    // Show toast notification
+    if (isDemoMode) {
+        showToast('Demo mode enabled - student names hidden', 'success');
+    } else {
+        showToast('Demo mode disabled - student names visible', 'info');
+    }
 }
 
 // Load submissions

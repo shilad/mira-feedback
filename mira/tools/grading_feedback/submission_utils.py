@@ -122,7 +122,7 @@ def create_submission_summary(submission_dir: Path, files: List[Tuple[Path, int]
 
 
 def build_submission_content(submission_dir: Path, files_to_grade: List[Tuple[Path, int]],
-                            max_file_size: int = 50000) -> str:
+                            max_file_size: int = 50000) ->  str:
     """
     Build the submission content string from selected files.
 
