@@ -177,6 +177,7 @@ pytest tests/test_grading_feedback.py -v
 mira-grader/
 ├── mira/               # Python package
 │   ├── libs/           # Shared libraries
+│   ├── evidence/       # Evidence builder, models, and plugins
 │   ├── tools/          # Main tools
 │   └── scripts/        # Utility scripts
 ├── config/             # YAML configuration

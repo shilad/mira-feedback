@@ -1,13 +1,16 @@
 """OpenAI-based grader using pydantic-ai for structured output."""
 
 import asyncio
+import json
 import logging
+import re
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from mira.libs.config_loader import ConfigType
+from mira.libs.config_loader import ConfigType, get_config
 from mira.libs.llm import create_agent
-from .models import RubricCriterion, ComponentFeedback, GradingResult, GradingAdjustment
+from mira.evidence import EvidenceBuilder, EvidencePolicy
+from .models import ComponentFeedback, GradingAdjustment, GradingResult, RubricCriterion
 from .rubric_parser import RubricParser
 
 LOG = logging.getLogger(__name__)
@@ -70,6 +73,17 @@ class SubmissionGrader:
         self.model_name = model
         self.settings = settings
 
+        self.evidence_policy_overrides: Dict[str, Any] = get_config(
+            "grading.evidence_builder.policy", configs, default={}
+        ) or {}
+        cache_dir_setting = get_config(
+            "grading.evidence_builder.cache_dir", configs, default=None
+        )
+        self.evidence_cache_dir = Path(cache_dir_setting) if cache_dir_setting else None
+        self.save_evidence_artifacts = bool(
+            get_config("grading.evidence_builder.save_artifacts", configs, default=False)
+        )
+
         # Create the main grading agent using the factory function
         self.agent = create_grading_agent(
             configs=self.configs,
@@ -77,7 +91,13 @@ class SubmissionGrader:
             settings_dict=settings
         )
 
-    async def grade_async(self, submission_content: str, rubric_criteria: List[RubricCriterion]) -> GradingResult:
+    async def grade_async(
+        self,
+        submission_content: str,
+        rubric_criteria: List[RubricCriterion],
+        *,
+        is_evidence: bool = False
+    ) -> GradingResult:
         """
         Grade a submission asynchronously.
 
@@ -89,7 +109,11 @@ class SubmissionGrader:
             GradingResult with scores and feedback
         """
         # Build the grading prompt
-        prompt = self._build_prompt(submission_content, rubric_criteria)
+        prompt = self._build_prompt(
+            submission_content,
+            rubric_criteria,
+            is_evidence=is_evidence,
+        )
 
         try:
             # Run the agent to get response
@@ -104,10 +128,6 @@ class SubmissionGrader:
                 response_text = str(result.data)
             else:
                 response_text = str(result)
-
-            # Try to extract structured data from the response
-            import json
-            import re
 
             # Look for JSON in the response
             json_match = re.search(r'{.*}', response_text, re.DOTALL)
@@ -161,7 +181,13 @@ class SubmissionGrader:
             # Return a default result on error
             return self._create_error_result(rubric_criteria, str(e))
 
-    def grade(self, submission_content: str, rubric_criteria: List[RubricCriterion]) -> GradingResult:
+    def grade(
+        self,
+        submission_content: str,
+        rubric_criteria: List[RubricCriterion],
+        *,
+        is_evidence: bool = False
+    ) -> GradingResult:
         """
         Grade a submission synchronously.
 
@@ -172,94 +198,13 @@ class SubmissionGrader:
         Returns:
             GradingResult with scores and feedback
         """
-        return asyncio.run(self.grade_async(submission_content, rubric_criteria))
-
-    async def select_files_for_review_async(self, summary: str, rubric_criteria: List[RubricCriterion]) -> List[str]:
-        """
-        Ask LLM to select which files to review based on submission summary and rubric.
-
-        Args:
-            summary: Summary of submission structure with file sizes
-            rubric_criteria: List of rubric criteria
-
-        Returns:
-            List of file paths to review
-        """
-        criteria_text = "\n".join([
-            f"- {c.name} ({c.max_points} points): {c.criteria}"
-            for c in rubric_criteria
-        ])
-
-        prompt = f"""You are reviewing a student submission directory structure to decide which files to grade.
-
-RUBRIC CRITERIA:
-{criteria_text}
-
-SUBMISSION STRUCTURE:
-{summary}
-
-Based on the rubric criteria and the submission structure above, select which files should be reviewed for grading.
-Focus on files that are most relevant to the rubric criteria.
-
-Return ONLY a JSON list of filenames that should be reviewed. For example:
-["main.py", "test.py", "README.md"]
-
-Include only the files most relevant to grading. Prioritize:
-1. Main implementation files
-2. Test files (if testing is in the rubric)
-3. Documentation (if documentation is in the rubric)
-4. Configuration/data files only if necessary
-
-Return ONLY the JSON list, no other text."""
-
-        try:
-            # Create a separate agent for file selection that returns plain text
-            import json
-
-            # Use the factory function to create a properly configured agent
-            file_selection_agent = create_grading_agent(
-                configs=self.configs,
-                model=self.model_name,
-                settings_dict=self.settings
+        return asyncio.run(
+            self.grade_async(
+                submission_content,
+                rubric_criteria,
+                is_evidence=is_evidence,
             )
-
-            result = await file_selection_agent.run(prompt)
-
-            # Parse the JSON response from the text
-            # Extract the actual output from the AgentRunResult
-            if hasattr(result, 'output'):
-                response_text = str(result.output)
-            elif hasattr(result, 'data'):
-                response_text = str(result.data)
-            else:
-                response_text = str(result)
-
-            # Extract JSON from the response
-            import re
-            json_match = re.search(r'\[.*?\]', response_text, re.DOTALL)
-            if json_match:
-                file_list = json.loads(json_match.group())
-                if isinstance(file_list, list):
-                    return file_list
-
-            LOG.warning("Could not parse file selection response, using all files")
-            return []
-        except Exception as e:
-            LOG.error(f"Error selecting files: {e}")
-            return []
-
-    def select_files_for_review(self, summary: str, rubric_criteria: List[RubricCriterion]) -> List[str]:
-        """
-        Synchronous wrapper for file selection.
-
-        Args:
-            summary: Summary of submission structure with file sizes
-            rubric_criteria: List of rubric criteria
-
-        Returns:
-            List of file paths to review
-        """
-        return asyncio.run(self.select_files_for_review_async(summary, rubric_criteria))
+        )
 
     def grade_submission_file(self, submission_path: Path, rubric_path: Path) -> GradingResult:
         """
@@ -286,12 +231,27 @@ Return ONLY the JSON list, no other text."""
         # Grade the submission
         return self.grade(submission_content, rubric_criteria)
 
-    def _build_prompt(self, submission: str, criteria: List[RubricCriterion]) -> str:
+    def _build_prompt(
+        self,
+        submission: str,
+        criteria: List[RubricCriterion],
+        *,
+        is_evidence: bool = False
+    ) -> str:
         """Build the grading prompt with rubric criteria."""
         criteria_text = "\n".join([
             f"- {c.name} ({c.max_points} points): {c.criteria}"
             for c in criteria
         ])
+
+        submission_label = "SUBMISSION EVIDENCE PACK" if is_evidence else "STUDENT SUBMISSION"
+        submission_context = (
+            "The material below is an evidence pack generated from the student's submission. "
+            "It includes summaries, statistics, and excerpts curated under strict size limits. "
+            "Assume the evidence is representative of the submission content."
+            if is_evidence
+            else "The material below is the student's submission content."
+        )
 
         return f"""Grade this student submission according to the following rubric:
 
@@ -309,6 +269,7 @@ INSTRUCTIONS:
 3. Provide specific, constructive feedback when a criterion is not fully met
 4. Write an overall comment summarizing the student's performance
 5. All comments should be very brief.
+6. If the evidence pack seems insufficient, state that manual review is required and explain why.
 
 Return your evaluation as a JSON object with this structure:
 {{
@@ -333,7 +294,9 @@ Examples:
 - No credit: "feedback": "No research question provided", "adjustments": [{{"name": "missing-question", "description": "Required question not found in submission", "score_impact": -0.5}}]
 - Partial credit: "feedback": "Question provided but lacks clarity", "adjustments": [{{"name": "vague-question", "description": "Question needs more specificity", "score_impact": -0.25}}]
 
-STUDENT SUBMISSION:
+{submission_label}:
+{submission_context}
+
 {submission}"""
 
     def _create_basic_result(self, criteria: List[RubricCriterion], response_text: str) -> GradingResult:
@@ -371,62 +334,88 @@ STUDENT SUBMISSION:
             comment=f"Grading error occurred: {error_msg}"
         )
 
-    def grade_submission_directory(self, submission_dir: Path, rubric_criteria: List[RubricCriterion]) -> GradingResult:
-        """
-        Grade all files in a submission directory.
+    def _build_evidence_policy(self) -> EvidencePolicy:
+        """Apply configuration overrides to the default evidence policy."""
+        overrides: Dict[str, Any] = {}
+        for field_name in EvidencePolicy.__dataclass_fields__.keys():  # type: ignore[attr-defined]
+            if field_name in self.evidence_policy_overrides:
+                overrides[field_name] = self.evidence_policy_overrides[field_name]
+        return EvidencePolicy(**overrides)
 
-        This method handles the complete workflow of:
-        1. Finding submission files
-        2. Selecting relevant files if submission is large
-        3. Building submission content
-        4. Grading the submission
+    def _resolve_cache_dir(self, submission_dir: Path) -> Optional[Path]:  # pylint: disable=unused-argument
+        """Determine where evidence cache artifacts should live."""
+        if self.evidence_cache_dir:
+            cache_path = self.evidence_cache_dir
+        else:
+            cache_path = Path(".mira_cache") / "evidence"
 
-        Args:
-            submission_dir: Path to the submission directory
-            rubric_criteria: List of rubric criteria to evaluate against
+        if not cache_path.is_absolute():
+            cache_path = (Path.cwd() / cache_path).resolve()
 
-        Returns:
-            GradingResult with scores and feedback
-        """
-        from .submission_utils import (
-            find_all_submission_files,
-            create_submission_summary,
-            build_submission_content,
-            select_files_to_grade,
-            SIZE_THRESHOLD
+        return cache_path
+
+    async def _grade_with_evidence_builder_async(
+        self,
+        submission_dir: Path,
+        rubric_criteria: List[RubricCriterion],
+    ) -> Optional[GradingResult]:
+        """Use the evidence builder pipeline to prepare content before grading."""
+        policy = self._build_evidence_policy()
+        cache_dir = self._resolve_cache_dir(submission_dir)
+        builder = EvidenceBuilder(policy=policy, cache_dir=cache_dir)
+        evidence_pack = builder.build_evidence(submission_dir)
+
+        if not evidence_pack.cards:
+            LOG.warning("Evidence builder produced zero cards for %s", submission_dir)
+            return None
+
+        evidence_text = evidence_pack.render_for_model()
+
+        if self.save_evidence_artifacts:
+            artifacts_dir = submission_dir / ".mira_evidence"
+            artifacts_dir.mkdir(parents=True, exist_ok=True)
+            (artifacts_dir / "evidence.json").write_text(
+                json.dumps(evidence_pack.to_dict(), indent=2, ensure_ascii=True),
+                encoding="utf-8",
+            )
+            (artifacts_dir / "evidence.txt").write_text(
+                evidence_text,
+                encoding="utf-8",
+            )
+
+        return await self.grade_async(
+            evidence_text,
+            rubric_criteria,
+            is_evidence=True,
         )
 
-        # Find all submission files
-        submission_files = find_all_submission_files(submission_dir)
-        if not submission_files:
-            LOG.warning(f"No submission files found in {submission_dir}")
-            return self._create_error_result(rubric_criteria, "No submission files found")
+    async def grade_submission_directory_async(
+        self,
+        submission_dir: Path,
+        rubric_criteria: List[RubricCriterion],
+    ) -> GradingResult:
+        """
+        Grade all files in a submission directory using the evidence builder pipeline.
 
-        total_size = sum(size for _, size in submission_files)
-        LOG.info(f"Found {len(submission_files)} files (total size: {total_size:,} bytes)")
+        This asynchronous version avoids nested event loops when called from batch grading.
+        """
+        try:
+            result = await self._grade_with_evidence_builder_async(submission_dir, rubric_criteria)
+            if result:
+                return result
+            LOG.warning("Evidence builder produced no cards for %s", submission_dir)
+        except Exception as exc:  # pylint: disable=broad-except
+            import traceback
+            LOG.error("Evidence-based grading failed for %s: %s", submission_dir, exc)
+            LOG.debug("Evidence failure traceback: %s", traceback.format_exc())
+            error_msg = f"Evidence extraction failed: {exc}"
+            return self._create_error_result(rubric_criteria, error_msg)
 
-        # Determine which files to grade
-        if total_size > SIZE_THRESHOLD:
-            LOG.info(f"Large submission detected ({total_size:,} bytes > {SIZE_THRESHOLD:,} bytes)")
-            LOG.info("Using two-pass approach to select relevant files...")
+        return self._create_error_result(
+            rubric_criteria,
+            "Evidence extraction produced no usable content.",
+        )
 
-            # Create submission summary and ask LLM which files to review
-            summary = create_submission_summary(submission_dir, submission_files)
-
-            try:
-                selected_filenames = self.select_files_for_review(summary, rubric_criteria)
-                files_to_grade = select_files_to_grade(submission_files, selected_filenames)
-                LOG.info(f"LLM selected {len(files_to_grade)} files for review")
-            except Exception as e:
-                LOG.warning(f"File selection failed, using all files: {e}")
-                files_to_grade = submission_files
-        else:
-            # Use all files for small submissions
-            files_to_grade = submission_files
-
-        # Build submission content from selected files
-        submission_content = build_submission_content(submission_dir, files_to_grade)
-        LOG.info(f"Combined submission content: {len(submission_content)} characters")
-
-        # Grade the submission
-        return self.grade(submission_content, rubric_criteria)
+    def grade_submission_directory(self, submission_dir: Path, rubric_criteria: List[RubricCriterion]) -> GradingResult:
+        """Synchronous wrapper for grading a submission directory."""
+        return asyncio.run(self.grade_submission_directory_async(submission_dir, rubric_criteria))

@@ -29,6 +29,21 @@ openai:
   pydantic_ai_settings:
     openai_reasoning_effort: low
 
+grading:
+  evidence_builder:
+    save_artifacts: false
+    cache_dir: ".mira_cache/evidence"
+    policy:
+      max_total_bytes: 500000
+      max_files: 40
+      max_text_bytes_per_file: 60000
+      max_notebook_cells: 200
+      max_csv_head_rows: 50
+      max_csv_random_rows: 150
+      max_json_chars: 20000
+      max_pdf_pages: 5
+      hash_salt: "v1"
+
 
 # Directory anonymizer settings
 anonymizer:

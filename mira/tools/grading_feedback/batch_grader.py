@@ -169,39 +169,11 @@ class BatchGrader:
                 settings=self.settings
             )
 
-            # Grade the submission directory
-            # Since grade_submission_directory calls grade() which uses asyncio.run(),
-            # we need to call the async version directly to avoid nested event loops
-            from .submission_utils import (
-                find_all_submission_files,
-                create_submission_summary,
-                build_submission_content,
-                select_files_to_grade,
-                SIZE_THRESHOLD
+            # Use the evidence-based pipeline asynchronously to avoid nested loops
+            grading_result = await grader.grade_submission_directory_async(
+                submission_dir,
+                rubric_criteria,
             )
-
-            # Find all submission files
-            submission_files = find_all_submission_files(submission_dir)
-            if not submission_files:
-                LOG.warning(f"No submission files found in {submission_dir}")
-                grading_result = grader._create_error_result(rubric_criteria, "No submission files found")
-            else:
-                total_size = sum(size for _, size in submission_files)
-
-                # Determine which files to grade
-                if total_size > SIZE_THRESHOLD:
-                    summary = create_submission_summary(submission_dir, submission_files)
-                    # Use async version to avoid nested event loops
-                    selected_filenames = await grader.select_files_for_review_async(summary, rubric_criteria)
-                    files_to_grade = select_files_to_grade(submission_files, selected_filenames)
-                else:
-                    files_to_grade = submission_files
-
-                # Build submission content from selected files
-                submission_content = build_submission_content(submission_dir, files_to_grade)
-
-                # Grade using the async method directly
-                grading_result = await grader.grade_async(submission_content, rubric_criteria)
 
             # Save feedback file in submission directory
             feedback_path = submission_dir / feedback_filename

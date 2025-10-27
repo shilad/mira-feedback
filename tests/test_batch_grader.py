@@ -152,8 +152,8 @@ async def test_grade_single_submission_async(mock_grader_class, sample_config, s
         (submission_dir / "main.py").write_text("def hello(): return 'world'")
 
         # Setup mocks
-        mock_grader = AsyncMock()
-        mock_grader.grade_async.return_value = sample_grading_result
+        mock_grader = MagicMock()
+        mock_grader.grade_submission_directory_async = AsyncMock(return_value=sample_grading_result)
         mock_grader_class.return_value = mock_grader
 
         # Create batch grader
@@ -193,8 +193,8 @@ async def test_grade_single_submission_error_async(mock_grader_class, sample_con
         (submission_dir / "main.py").write_text("def hello(): return 'world'")
 
         # Setup mock to raise error
-        mock_grader = AsyncMock()
-        mock_grader.grade_async.side_effect = Exception("API error")
+        mock_grader = MagicMock()
+        mock_grader.grade_submission_directory_async = AsyncMock(side_effect=Exception("API error"))
         mock_grader_class.return_value = mock_grader
 
         # Create batch grader
@@ -235,8 +235,8 @@ def test_grade_all_submissions_sync(mock_parser_class, mock_grader_class,
         mock_parser.parse_file.return_value = sample_rubric
         mock_parser_class.return_value = mock_parser
 
-        mock_grader = AsyncMock()
-        mock_grader.grade_async.return_value = sample_grading_result
+        mock_grader = MagicMock()
+        mock_grader.grade_submission_directory_async = AsyncMock(return_value=sample_grading_result)
         mock_grader_class.return_value = mock_grader
 
         # Create batch grader

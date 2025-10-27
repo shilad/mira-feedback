@@ -31,6 +31,20 @@ grade-batch -s hw/2_redacted/ -r rubric.md --summary grading_results.yaml
 grade-review --workdir hw/
 ```
 
+### Evidence Builder (Default)
+Grading now runs through the deterministic evidence pipeline, which summarizes notebooks, R Markdown, CSVs, JSON/YAML, PDFs, and code before sending anything to the model. Tune its behavior via `config/local.yaml`:
+```yaml
+# config/local.yaml
+grading:
+  evidence_builder:
+    save_artifacts: true         # writes .mira_evidence/evidence.{json,txt} per submission
+    cache_dir: ".mira_cache/evidence"
+    policy:
+      max_total_bytes: 400000
+      max_pdf_pages: 3
+```
+Caches default to `.mira_cache/evidence` at the project root and are automatically ignored when compiling evidence cards.
+
 ### Development Setup
 ```bash
 # Install uv (if not already installed)
@@ -146,6 +160,7 @@ In `tools/grading_feedback/`:
 - **batch_grader.py**: Parallel batch grading for multiple submissions with async/await
 - **batch_cli.py**: CLI for batch grading with progress tracking
 - **submission_utils.py**: Utilities for processing submission directories
+- **mira/evidence/**: Shared evidence extraction (builder, models, and plugins) producing size-bounded packs for the grader
 - **rubric_parser.py**: Parses rubric criteria from markdown tables
 - **models.py**: Pydantic models for grading results
 - **cli.py**: Command-line interface for single submission grading
