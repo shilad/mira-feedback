@@ -23,11 +23,21 @@ class CodeFilePlugin(EvidencePlugin):
         absolute = submission_root / manifest_entry.path
         content = read_text_with_cap(absolute, policy)
         summary = summarize_code(content, manifest_entry.path)
-        snippets = clamp_snippets([content], policy.max_text_bytes_per_file)
+
+        was_truncated_on_read = "truncated before processing" in content
+        snippets, was_clamped = clamp_snippets([content], policy.max_text_bytes_per_file)
+
+        truncation_warning = None
+        if was_truncated_on_read:
+            truncation_warning = f"File too large (>{policy.max_text_bytes_per_file * 20} bytes)"
+        elif was_clamped:
+            truncation_warning = f"Content exceeded {policy.max_text_bytes_per_file} bytes, truncated"
+
         return EvidenceCard(
             manifest_entry=manifest_entry,
             summary=summary,
             snippets=snippets,
+            truncation_warning=truncation_warning,
         )
 
 

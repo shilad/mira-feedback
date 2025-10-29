@@ -34,10 +34,16 @@ class PdfFilePlugin(EvidencePlugin):
                 snippets=[],
             )
 
-        snippets = clamp_snippets(page_texts, policy.max_text_bytes_per_file)
+        snippets, was_clamped = clamp_snippets(page_texts, policy.max_text_bytes_per_file)
+
+        truncation_warning = None
+        if was_clamped:
+            truncation_warning = f"PDF content exceeded {policy.max_text_bytes_per_file} bytes, some pages not included"
+
         summary = f"PDF document excerpted ({len(snippets)} pages captured)."
         return EvidenceCard(
             manifest_entry=manifest_entry,
             summary=summary,
             snippets=snippets,
+            truncation_warning=truncation_warning,
         )

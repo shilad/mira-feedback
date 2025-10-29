@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
+import asyncio
+
+from mira.libs.llm import create_agent
+from mira.libs.config_loader import load_all_configs
 
 LOG = logging.getLogger(__name__)
 
@@ -169,15 +173,18 @@ class ReviewInterface:
         for i, submission in enumerate(self.grading_data.get('submissions', [])):
             sub_id = submission.get('student_id', '')
             if sub_id == student_id or sub_id == anonymized_id:
+                # Normalize comment fields that may come from the UI
+                if 'overall_comment' in updates and 'comment' not in updates:
+                    updates['comment'] = updates['overall_comment']
+
                 # Update fields
                 for key, value in updates.items():
                     if key in ['total_score', 'comment', 'components']:
                         submission[key] = value
 
                 # Mark as edited
-                if 'edited' not in submission:
-                    submission['edited'] = True
-                    submission['edited_timestamp'] = datetime.now().isoformat()
+                submission['edited'] = True
+                submission['edited_timestamp'] = datetime.now().isoformat()
 
                 # Recalculate summary statistics
                 self._update_summary_statistics()
@@ -320,3 +327,67 @@ class ReviewInterface:
             with open(rubric_path, 'r') as f:
                 return f.read()
         return None
+
+    def regenerate_comment(self, student_id: str, components: Dict[str, Any]) -> str:
+        """
+        Regenerate the overall comment using LLM based on current component scores/adjustments.
+
+        Args:
+            student_id: Student identifier
+            components: Dict of component name -> {score, max_score, adjustments}
+
+        Returns:
+            Generated overall comment string
+        """
+        # Build summary of components for LLM
+        component_summary = []
+        for name, comp in components.items():
+            score = comp.get('score', 0)
+            max_score = comp.get('max_score', 1)
+            adjustments = comp.get('adjustments', [])
+
+            status = "full credit" if score == max_score else f"{score}/{max_score}"
+            component_summary.append(f"- {name}: {status}")
+
+            if adjustments:
+                for adj in adjustments:
+                    desc = adj.get('description', '')
+                    impact = adj.get('score_impact', 0)
+                    if desc:
+                        component_summary.append(f"  └─ {desc} ({impact:+.2f})")
+
+        components_text = "\n".join(component_summary)
+
+        prompt = f"""Based on this student's component scores and adjustments, write a brief (2-3 sentences) overall feedback comment.
+
+Focus on:
+1. What they did well
+2. Key areas for improvement (from adjustments)
+3. Encouraging, constructive tone
+
+COMPONENT SCORES:
+{components_text}
+
+Write only the overall comment, nothing else:"""
+
+        # Create LLM agent using same config as grader
+        config = load_all_configs()
+        agent = create_agent(
+            configs=config,
+            model=None,  # Use config default (same as grader)
+            settings_dict=None,  # Use config default (same as grader)
+            system_prompt="You are a helpful teaching assistant providing constructive feedback to students."
+        )
+
+        # Run synchronously
+        result = asyncio.run(agent.run(prompt))
+
+        # Extract response
+        if hasattr(result, 'output'):
+            comment = str(result.output).strip()
+        elif hasattr(result, 'data'):
+            comment = str(result.data).strip()
+        else:
+            comment = str(result).strip()
+
+        return comment

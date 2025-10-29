@@ -27,10 +27,20 @@ class NotebookPlugin(EvidencePlugin):
             notebook = nbformat.read(absolute, as_version=4)
         except Exception as exc:  # pylint: disable=broad-except
             raw = read_text_with_cap(absolute, policy)
+            was_truncated_on_read = "truncated before processing" in raw
+            snippets, was_clamped = clamp_snippets([raw], policy.max_text_bytes_per_file)
+
+            truncation_warning = None
+            if was_truncated_on_read:
+                truncation_warning = f"File too large (>{policy.max_text_bytes_per_file * 20} bytes)"
+            elif was_clamped:
+                truncation_warning = f"Content exceeded {policy.max_text_bytes_per_file} bytes, truncated"
+
             return EvidenceCard(
                 manifest_entry=manifest_entry,
                 summary=f"Notebook could not be parsed ({exc}); raw JSON snippet attached.",
-                snippets=clamp_snippets([raw], policy.max_text_bytes_per_file),
+                snippets=snippets,
+                truncation_warning=truncation_warning,
             )
 
         cells = notebook.get("cells", [])[: policy.max_notebook_cells]
@@ -50,9 +60,15 @@ class NotebookPlugin(EvidencePlugin):
             f"({len(code_cells)} code, {len(markdown_cells)} markdown). "
             "Outputs trimmed."
         )
-        snippets = clamp_snippets(md_snippets + code_snippets, policy.max_text_bytes_per_file)
+        snippets, was_clamped = clamp_snippets(md_snippets + code_snippets, policy.max_text_bytes_per_file)
+
+        truncation_warning = None
+        if was_clamped:
+            truncation_warning = f"Notebook content exceeded {policy.max_text_bytes_per_file} bytes, some cells truncated"
+
         return EvidenceCard(
             manifest_entry=manifest_entry,
             summary=summary,
             snippets=snippets,
+            truncation_warning=truncation_warning,
         )

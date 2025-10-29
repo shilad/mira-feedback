@@ -22,11 +22,12 @@ class ComponentFeedback(BaseModel):
     """Feedback for a single rubric component."""
     score: float = Field(description="Points assigned for this component")
     max_score: float = Field(description="Maximum possible points for this component")
-    feedback: str = Field(description="Specific feedback for this component")
     adjustments: Optional[List[GradingAdjustment]] = Field(
         default=None,
         description="List of adjustments applied to this component"
     )
+    # Legacy field - no longer used, adjustments contain the feedback
+    feedback: Optional[str] = Field(default=None, description="Deprecated: use adjustments instead")
 
 
 class GradingResult(BaseModel):
@@ -37,6 +38,10 @@ class GradingResult(BaseModel):
         description="Feedback for each rubric component, keyed by component name"
     )
     comment: str = Field(description="Overall feedback comment for the student")
+    truncation_warnings: Optional[List[str]] = Field(
+        default=None,
+        description="Warnings if evidence was truncated due to size limits"
+    )
 
     def to_yaml_dict(self) -> dict:
         """Convert to dictionary suitable for YAML serialization."""
@@ -45,9 +50,8 @@ class GradingResult(BaseModel):
             component_data = {
                 'score': feedback.score,
                 'max_score': feedback.max_score,
-                'feedback': feedback.feedback
             }
-            # Include adjustments if present
+            # Include adjustments if present (adjustments contain the feedback details)
             if feedback.adjustments:
                 component_data['adjustments'] = [
                     {
@@ -59,9 +63,12 @@ class GradingResult(BaseModel):
                 ]
             components_dict[name] = component_data
 
-        return {
+        result = {
             'total_score': self.total_score,
             'max_score': self.max_score,
             'components': components_dict,
             'comment': self.comment
         }
+        if self.truncation_warnings:
+            result['truncation_warnings'] = self.truncation_warnings
+        return result

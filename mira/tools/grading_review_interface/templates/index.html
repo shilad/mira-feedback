@@ -22,11 +22,9 @@
                 <span class="stat-item">Avg: <span id="stat-avg-inline">-</span></span>
                 <span class="stat-item">Edited: <span id="stat-edited-inline">-</span></span>
                 <span class="stat-item">Range: <span id="stat-range-inline">-</span></span>
+                <span id="autosave-indicator" class="autosave-indicator"></span>
             </div>
             <div class="header-actions">
-                <button id="save-btn" class="btn btn-primary" title="Save changes">
-                    <i class="fas fa-save"></i> Save
-                </button>
                 <button id="rubric-btn" class="btn btn-secondary" title="View rubric">
                     <i class="fas fa-book"></i> Rubric
                 </button>
@@ -75,12 +73,19 @@
                                 <span id="max-score" class="max-score"></span>
                             </div>
                             <div class="editor-actions-inline">
-                                <button id="update-btn" class="btn btn-success">
-                                    Update <i class="fas fa-check"></i>
-                                </button>
                                 <button id="next-btn" class="btn btn-primary">
                                     Next <i class="fas fa-arrow-right"></i>
                                 </button>
+                            </div>
+                        </div>
+
+                        <div id="truncation-warnings-section" style="display: none; margin-bottom: 20px;">
+                            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 12px;">
+                                <h4 style="margin-top: 0; color: #856404;">
+                                    <i class="fas fa-exclamation-triangle"></i> Evidence Truncation Warnings
+                                </h4>
+                                <ul id="truncation-warnings-list" style="margin-bottom: 0; color: #856404;">
+                                </ul>
                             </div>
                         </div>
 
@@ -95,6 +100,9 @@
                                 <small class="char-count"><span id="comment-chars">0</span> characters</small>
                                 <small class="auto-save-indicator" id="auto-save-indicator"></small>
                             </div>
+                            <button id="regenerate-comment-btn" class="btn btn-secondary" onclick="regenerateComment()" style="margin-top: 10px;">
+                                <i class="fas fa-magic"></i> Regenerate Comment with AI
+                            </button>
                         </div>
 
                     </div>

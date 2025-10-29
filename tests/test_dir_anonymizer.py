@@ -85,7 +85,6 @@ Address: 123 Main St, Anytown, CA 12345
     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-@pytest.mark.slow_integration_test
 def test_anonymize_directory(temp_test_dir):
     """Test basic directory anonymization."""
     output_dir = tempfile.mkdtemp()
@@ -136,7 +135,6 @@ def test_anonymize_directory(temp_test_dir):
         shutil.rmtree(output_dir, ignore_errors=True)
 
 
-@pytest.mark.slow_integration_test
 def test_anonymize_and_restore(temp_test_dir):
     """Test anonymization and restoration roundtrip."""
     anon_dir = tempfile.mkdtemp()
@@ -212,7 +210,6 @@ def test_custom_config():
     assert anonymizer.anon_config['options']['anonymize_filenames'] is True
 
 
-@pytest.mark.slow_integration_test
 def test_file_type_filtering(temp_test_dir):
     """Test that only configured file types are processed."""
     # Create additional files with different extensions
@@ -242,7 +239,6 @@ def test_file_type_filtering(temp_test_dir):
         shutil.rmtree(output_dir, ignore_errors=True)
 
 
-@pytest.mark.slow_integration_test
 def test_moodle_submission_anonymization():
     """Test anonymization of Moodle submission directories with various name formats.
     

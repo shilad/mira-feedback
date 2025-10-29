@@ -7,6 +7,7 @@ from typing import List, Optional
 
 from .base import EvidencePlugin
 from .code import CodeFilePlugin
+from .html import HtmlPlugin
 from .markdown import MarkdownPlugin
 from .notebook import NotebookPlugin
 from .pdf import PdfFilePlugin
@@ -19,6 +20,7 @@ CSV_EXTENSIONS = {".csv", ".tsv"}
 JSON_EXTENSIONS = {".json"}
 YAML_EXTENSIONS = {".yml", ".yaml"}
 PDF_EXTENSIONS = {".pdf"}
+HTML_EXTENSIONS = {".html", ".htm"}
 MARKDOWN_EXTENSIONS = {".md", ".markdown"}
 R_DOC_EXTENSIONS = {".rmd", ".Rmd", ".qmd", ".Qmd"}
 R_SOURCE_EXTENSIONS = {".r", ".R"}
@@ -55,6 +57,7 @@ def default_plugins() -> List[EvidencePlugin]:
         CsvFilePlugin(),
         JsonYamlPlugin(),
         PdfFilePlugin(),
+        HtmlPlugin(),
         MarkdownPlugin(),
         PlainTextPlugin(),
     ]
@@ -72,6 +75,8 @@ def infer_kind(rel_path: Path, suffix: str) -> Optional[str]:
         return "yaml"
     if suffix_lower in PDF_EXTENSIONS:
         return "pdf"
+    if suffix_lower in HTML_EXTENSIONS:
+        return "html"
     if suffix_lower in MARKDOWN_EXTENSIONS:
         return "markdown"
     if suffix_lower in TEXT_EXTENSIONS:

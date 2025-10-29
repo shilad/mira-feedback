@@ -36,7 +36,7 @@ grading:
     policy:
       max_total_bytes: 500000
       max_files: 40
-      max_text_bytes_per_file: 60000
+      max_text_bytes_per_file: 100000
       max_notebook_cells: 200
       max_csv_head_rows: 50
       max_csv_random_rows: 150
@@ -76,6 +76,8 @@ anonymizer:
     - .r
     - .R
     - .ipynb
+    - .htm
+    - .html3
     
   # Patterns to exclude from processing
   exclude_patterns:

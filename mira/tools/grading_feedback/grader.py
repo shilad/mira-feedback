@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from mira.libs.config_loader import ConfigType, get_config
 from mira.libs.llm import create_agent
-from mira.evidence import EvidenceBuilder, EvidencePolicy
+from mira.libs.evidence import EvidenceBuilder, EvidencePolicy
 from .models import ComponentFeedback, GradingAdjustment, GradingResult, RubricCriterion
 from .rubric_parser import RubricParser
 
@@ -138,7 +138,7 @@ class SubmissionGrader:
                     # Convert to GradingResult
                     components = {}
                     for name, info in data.get('components', {}).items():
-                        # Extract adjustments (now required)
+                        # Extract adjustments - these contain the detailed feedback
                         adjustments = []
                         if 'adjustments' in info and info['adjustments']:
                             adjustments = [
@@ -150,16 +150,11 @@ class SubmissionGrader:
                                 for adj in info['adjustments']
                             ]
 
-                        # Generate feedback from adjustments
-                        feedback = '; '.join([adj.get('description', '') for adj in info.get('adjustments', [])])
-                        if not feedback:
-                            feedback = "See adjustments for details"
-
                         components[name] = ComponentFeedback(
                             score=info.get('score', 0),
                             max_score=info.get('max_score', 0),
-                            feedback=feedback,
                             adjustments=adjustments if adjustments else None
+                            # No feedback field - adjustments contain the detail
                         )
 
                     return GradingResult(
@@ -283,16 +278,19 @@ Return your evaluation as a JSON object with this structure:
 }}
 
 Each component MUST have:
-- "feedback": A clear explanation of what the student did well or needs to improve
-- "adjustments": An array of score changes (can be empty if full credit)
+- "adjustments": An array of score changes (empty array if full credit)
 
-Only create adjustments when deducting points (score_impact < 0):
-{{"name": "<adjustment-name>", "description": "<specific issue>", "score_impact": <negative value>}}
+IMPORTANT: Only create adjustments when deducting points (score_impact < 0).
+Each adjustment MUST include a clear, specific description of the issue.
+
+Adjustment format:
+{{"name": "<adjustment-name>", "description": "<specific, actionable feedback>", "score_impact": <negative value>}}
 
 Examples:
-- Full credit: "feedback": "Well-defined research question about ferris wheel heights", "adjustments": []
-- No credit: "feedback": "No research question provided", "adjustments": [{{"name": "missing-question", "description": "Required question not found in submission", "score_impact": -0.5}}]
-- Partial credit: "feedback": "Question provided but lacks clarity", "adjustments": [{{"name": "vague-question", "description": "Question needs more specificity", "score_impact": -0.25}}]
+- Full credit: "adjustments": []
+- No credit: "adjustments": [{{"name": "missing-question", "description": "Required research question not found in submission", "score_impact": -0.5}}]
+- Partial credit: "adjustments": [{{"name": "vague-question", "description": "Question needs more specificity about what will be measured", "score_impact": -0.25}}]
+- Multiple issues: "adjustments": [{{"name": "issue1", "description": "...", "score_impact": -0.25}}, {{"name": "issue2", "description": "...", "score_impact": -0.25}}]
 
 {submission_label}:
 {submission_context}
@@ -307,14 +305,18 @@ Examples:
             components[criterion.name] = ComponentFeedback(
                 score=criterion.max_points * 0.5,  # Default to 50% credit
                 max_score=criterion.max_points,
-                feedback="Automated evaluation - please review manually"
+                adjustments=[GradingAdjustment(
+                    name="parsing-error",
+                    description="Automated evaluation produced unparseable response - please review manually",
+                    score_impact=criterion.max_points * -0.5
+                )]
             )
 
         return GradingResult(
             total_score=sum(c.max_points * 0.5 for c in criteria),
             max_score=sum(c.max_points for c in criteria),
             components=components,
-            comment=f"Automated grading completed. Response: {response_text[:200]}..."
+            comment=f"Automated grading could not parse LLM response properly. Manual review recommended. Response preview: {response_text[:150]}..."
         )
 
     def _create_error_result(self, criteria: List[RubricCriterion], error_msg: str) -> GradingResult:
@@ -324,7 +326,11 @@ Examples:
             components[criterion.name] = ComponentFeedback(
                 score=0,
                 max_score=criterion.max_points,
-                feedback=f"Could not evaluate: {error_msg}"
+                adjustments=[GradingAdjustment(
+                    name="grading-error",
+                    description=f"Could not evaluate: {error_msg}",
+                    score_impact=criterion.max_points * -1
+                )]
             )
 
         return GradingResult(
@@ -371,6 +377,13 @@ Examples:
 
         evidence_text = evidence_pack.render_for_model()
 
+        # Collect truncation warnings from evidence cards
+        truncation_warnings = [
+            f"{card.manifest_entry.path.name}: {card.truncation_warning}"
+            for card in evidence_pack.cards
+            if card.truncation_warning
+        ]
+
         if self.save_evidence_artifacts:
             artifacts_dir = submission_dir / ".mira_evidence"
             artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -383,11 +396,17 @@ Examples:
                 encoding="utf-8",
             )
 
-        return await self.grade_async(
+        result = await self.grade_async(
             evidence_text,
             rubric_criteria,
             is_evidence=True,
         )
+
+        # Add truncation warnings to result if any
+        if truncation_warnings:
+            result.truncation_warnings = truncation_warnings
+
+        return result
 
     async def grade_submission_directory_async(
         self,

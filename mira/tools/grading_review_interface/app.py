@@ -1,6 +1,9 @@
 """Flask web application for grading review interface."""
 
 import logging
+from threading import Lock, Timer
+from typing import Optional
+
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
 
@@ -13,6 +16,54 @@ CORS(app)
 
 # Global review interface instance
 review_interface = None
+save_scheduler: Optional["DebouncedSaver"] = None
+
+
+class DebouncedSaver:
+    """Persist grading results with debouncing to avoid rapid disk writes."""
+
+    def __init__(self, interface: ReviewInterface, debounce_seconds: float = 2.0) -> None:
+        self._interface = interface
+        self._debounce_seconds = debounce_seconds
+        self._lock = Lock()
+        self._timer: Optional[Timer] = None
+        self._pending_backup = False
+
+    def schedule(self, *, backup: bool = False) -> None:
+        with self._lock:
+            self._pending_backup = self._pending_backup or backup
+            if self._timer is not None:
+                self._timer.cancel()
+
+            self._timer = Timer(self._debounce_seconds, self._flush)
+            self._timer.daemon = True
+            self._timer.start()
+
+    def flush_now(self, *, backup: bool = False) -> None:
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+
+            self._pending_backup = self._pending_backup or backup
+            pending_backup = self._pending_backup
+            self._pending_backup = False
+
+        self._perform_save(pending_backup)
+
+    def _flush(self) -> None:
+        with self._lock:
+            self._timer = None
+            pending_backup = self._pending_backup
+            self._pending_backup = False
+
+        self._perform_save(pending_backup)
+
+    def _perform_save(self, backup: bool) -> None:
+        try:
+            self._interface.save_grading_results(backup=backup)
+        except Exception:  # pylint: disable=broad-except
+            LOG.exception("Failed to save grading results")
 
 
 def create_app(interface: ReviewInterface):
@@ -22,8 +73,9 @@ def create_app(interface: ReviewInterface):
     Args:
         interface: ReviewInterface instance
     """
-    global review_interface
+    global review_interface, save_scheduler
     review_interface = interface
+    save_scheduler = DebouncedSaver(interface)
 
     LOG.info("Flask app created and configured")
     return app
@@ -68,6 +120,8 @@ def update_submission(student_id: str):
     success = review_interface.update_submission(student_id, updates)
 
     if success:
+        if save_scheduler is not None:
+            save_scheduler.schedule(backup=False)
         return jsonify({
             'success': True,
             'message': 'Submission updated successfully'
@@ -79,11 +133,39 @@ def update_submission(student_id: str):
         }), 404
 
 
+@app.route('/api/submissions/<path:student_id>/regenerate-comment', methods=['POST'])
+def regenerate_comment(student_id: str):
+    """Regenerate the overall comment using LLM based on current components."""
+    try:
+        components = request.json.get('components', {})
+        if not components:
+            return jsonify({
+                'success': False,
+                'error': 'No components provided'
+            }), 400
+
+        new_comment = review_interface.regenerate_comment(student_id, components)
+
+        return jsonify({
+            'success': True,
+            'comment': new_comment
+        })
+    except Exception as e:
+        LOG.error(f"Error regenerating comment for {student_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/save', methods=['POST'])
 def save_results():
     """Save all grading results to file."""
     backup = request.json.get('backup', True) if request.json else True
-    review_interface.save_grading_results(backup=backup)
+    if save_scheduler is not None:
+        save_scheduler.flush_now(backup=backup)
+    else:
+        review_interface.save_grading_results(backup=backup)
 
     return jsonify({
         'success': True,
@@ -168,7 +250,10 @@ def get_rubric():
 def export_results():
     """Export current grading results as downloadable YAML."""
     # Save to ensure latest changes
-    review_interface.save_grading_results(backup=False)
+    if save_scheduler is not None:
+        save_scheduler.flush_now(backup=False)
+    else:
+        review_interface.save_grading_results(backup=False)
 
     return send_file(
         review_interface.grading_results_path,

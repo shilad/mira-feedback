@@ -9,6 +9,45 @@ const state = {
     terminal: null
 };
 
+function cloneAdjustments(adjustments) {
+    if (!Array.isArray(adjustments)) {
+        return [];
+    }
+
+    return adjustments.map((adj) => ({
+        name: adj.name || '',
+        description: adj.description || '',
+        score_impact: typeof adj.score_impact === 'number'
+            ? adj.score_impact
+            : parseFloat(adj.score_impact) || 0,
+        is_manual: Boolean(adj.is_manual)
+    }));
+}
+
+function buildComponentsPayloadFromState() {
+    if (!state.currentSubmission || !state.currentSubmission.components) {
+        return {};
+    }
+
+    const payload = {};
+    Object.entries(state.currentSubmission.components).forEach(([name, comp]) => {
+        payload[name] = {
+            score: typeof comp.score === 'number' ? comp.score : parseFloat(comp.score) || 0,
+            max_score: typeof comp.max_score === 'number'
+                ? comp.max_score
+                : parseFloat(comp.max_score) || 0,
+            adjustments: cloneAdjustments(comp.adjustments)
+            // No feedback field - adjustments contain the detail
+        };
+    });
+
+    return payload;
+}
+
+function calculateTotalScoreFromComponents(components) {
+    return Object.values(components).reduce((sum, comp) => sum + (comp.score || 0), 0);
+}
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
@@ -36,8 +75,7 @@ async function initializeApp() {
 
 // Event listeners
 function setupEventListeners() {
-    // Header actions
-    document.getElementById('save-btn').addEventListener('click', saveResults);
+    // Header actions - using auto-save now, no manual save button
 
     // Demo mode toggle
     document.getElementById('demo-mode-btn')?.addEventListener('click', toggleDemoMode);
@@ -52,8 +90,7 @@ function setupEventListeners() {
     // Rubric button
     document.getElementById('rubric-btn')?.addEventListener('click', showRubricModal);
 
-    // Editor actions
-    document.getElementById('update-btn').addEventListener('click', updateFeedback);
+    // Editor actions - using auto-save now, no manual update button
     document.getElementById('next-btn').addEventListener('click', selectNextSubmission);
 
     // Modals
@@ -244,6 +281,18 @@ function renderSubmissionEditor() {
     commentTextarea.value = sub.comment || '';
     document.getElementById('comment-chars').textContent = commentTextarea.value.length;
 
+    // Display truncation warnings if any
+    const warningsSection = document.getElementById('truncation-warnings-section');
+    const warningsList = document.getElementById('truncation-warnings-list');
+    if (sub.truncation_warnings && sub.truncation_warnings.length > 0) {
+        warningsList.innerHTML = sub.truncation_warnings.map(warning =>
+            `<li>${escapeHtml(warning)}</li>`
+        ).join('');
+        warningsSection.style.display = 'block';
+    } else {
+        warningsSection.style.display = 'none';
+    }
+
     // Render components with adjustments
     const componentsContainer = document.getElementById('components-container');
     componentsContainer.innerHTML = Object.entries(sub.components || {}).map(([name, comp]) => {
@@ -259,10 +308,6 @@ function renderSubmissionEditor() {
         <div class="component-card" data-component="${name}">
             <div class="component-header-line">
                 <span class="component-name">${name}:</span>
-                <div class="component-feedback-inline"
-                     contenteditable="true"
-                     data-component="${name}"
-                     onblur="updateComponentFeedback('${name}', this.textContent)">${comp.feedback || 'Add feedback...'}</div>
                 <div class="component-score-inline">
                     <span class="score-display" data-component="${name}">${comp.score.toFixed(1)}</span>
                     <span class="score-max">/ ${comp.max_score}</span>
@@ -471,29 +516,6 @@ function removeAdjustmentQuick(componentName, index, type) {
     recalculateComponentScore(componentName);
     updateTotalScore();
     autoSaveDebounced();
-}
-
-// Update component feedback
-function updateComponentFeedback(componentName, newFeedback) {
-    const comp = state.currentSubmission.components[componentName];
-    if (!comp) return;
-
-    // Handle empty or "Add feedback..." placeholder
-    if (newFeedback === 'Add feedback...' || newFeedback.trim() === '') {
-        comp.feedback = '';
-    } else {
-        comp.feedback = newFeedback.trim();
-    }
-
-    // Mark as edited
-    state.currentSubmission.edited = true;
-    updateSubmissionDisplay();
-
-    // Auto-save with debouncing
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(() => {
-        saveFeedbackSilent();
-    }, 1000);
 }
 
 // Recalculate component score based on adjustments
@@ -897,24 +919,16 @@ function showDetailedStats() {
 
 // Save results
 async function saveResults() {
-    try {
-        const response = await fetch('/api/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ backup: true })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showToast('Results saved successfully', 'success');
-        } else {
-            showToast('Failed to save results: ' + data.error, 'error');
+    if (state.currentSubmission) {
+        const updated = await updateFeedback(true);
+        if (!updated) {
+            return;
         }
-    } catch (error) {
-        showToast('Error saving results: ' + error.message, 'error');
+    }
+
+    const persisted = await persistGradingResults(true);
+    if (persisted) {
+        showToast('Results saved successfully', 'success');
     }
 }
 
@@ -1126,60 +1140,61 @@ function showKeyboardHelp() {
 
 // Auto-save functionality
 let autoSaveTimer = null;
+let saveIndicatorTimer = null;
 const AUTOSAVE_DELAY = 2000; // 2 seconds
+const SAVED_INDICATOR_DURATION = 3000; // Show "Saved" for 3 seconds
 
 function autoSaveDebounced() {
     if (!state.currentSubmission) return;
 
-    // Clear existing timer
+    // Clear existing timers
     if (autoSaveTimer) {
         clearTimeout(autoSaveTimer);
     }
+    if (saveIndicatorTimer) {
+        clearTimeout(saveIndicatorTimer);
+    }
 
     // Show saving indicator
-    const saveBtn = document.getElementById('save-btn');
-    const originalText = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Auto-saving...';
-    saveBtn.disabled = true;
+    const indicator = document.getElementById('autosave-indicator');
+    indicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    indicator.className = 'autosave-indicator saving';
 
     // Set new timer
     autoSaveTimer = setTimeout(async () => {
-        await updateFeedback(true); // Pass true for auto-save
-        saveBtn.innerHTML = originalText;
-        saveBtn.disabled = false;
-        showToast('Auto-saved', 'success');
+        const success = await saveFeedbackSilent();
+        if (success) {
+            // Show "Saved" briefly
+            indicator.innerHTML = '<i class="fas fa-check"></i> Saved';
+            indicator.className = 'autosave-indicator saved';
+
+            // Clear indicator after a few seconds
+            saveIndicatorTimer = setTimeout(() => {
+                indicator.innerHTML = '';
+                indicator.className = 'autosave-indicator';
+            }, SAVED_INDICATOR_DURATION);
+        } else {
+            indicator.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Save failed';
+            indicator.className = 'autosave-indicator error';
+        }
     }, AUTOSAVE_DELAY);
 }
 
 // Update the updateFeedback function to support auto-save
 async function updateFeedback(isAutoSave = false) {
-    if (!state.currentSubmission) return;
+    if (!state.currentSubmission) return false;
 
-    const overallComment = document.getElementById('overall-comment').value;
-    const components = {};
-
-    // Collect component data from the new structure
-    document.querySelectorAll('.component-card').forEach(card => {
-        const componentName = card.dataset.component;
-        const scoreInput = card.querySelector('.component-score-input');
-        const feedbackTextarea = card.querySelector('.component-feedback');
-
-        if (componentName && state.currentSubmission.components[componentName]) {
-            const comp = state.currentSubmission.components[componentName];
-            components[componentName] = {
-                score: parseFloat(scoreInput?.value) || comp.score || 0,
-                max_score: comp.max_score,
-                feedback: feedbackTextarea?.value || comp.feedback || '',
-                adjustments: comp.adjustments || []
-            };
-        }
-    });
+    const overallCommentEl = document.getElementById('overall-comment');
+    const overallComment = overallCommentEl ? overallCommentEl.value : '';
+    const components = buildComponentsPayloadFromState();
+    const totalScore = calculateTotalScoreFromComponents(components);
 
     const data = {
         student_id: state.currentSubmission.student_id,
+        comment: overallComment,
         overall_comment: overallComment,
-        components: components,
-        total_score: Object.values(components).reduce((sum, c) => sum + c.score, 0)
+        components,
+        total_score: totalScore
     };
 
     try {
@@ -1195,15 +1210,15 @@ async function updateFeedback(isAutoSave = false) {
 
         if (result.success) {
             state.currentSubmission.comment = overallComment;
-            state.currentSubmission.components = components;
+            state.currentSubmission.components = JSON.parse(JSON.stringify(components));
             state.currentSubmission.edited = true;
-            state.currentSubmission.total_score = data.total_score;
+            state.currentSubmission.total_score = totalScore;
 
-            // Update submission in list
-            const subIndex = state.submissions.findIndex(s => s.student_id === data.student_id);
+            const subIndex = state.submissions.findIndex((s) => s.student_id === data.student_id);
             if (subIndex !== -1) {
                 state.submissions[subIndex].edited = true;
-                state.submissions[subIndex].total_score = data.total_score;
+                state.submissions[subIndex].total_score = totalScore;
+                state.submissions[subIndex].comment = overallComment;
             }
 
             renderSubmissionsList();
@@ -1211,11 +1226,97 @@ async function updateFeedback(isAutoSave = false) {
             if (!isAutoSave) {
                 showToast('Feedback updated successfully', 'success');
             }
-        } else {
-            showToast('Failed to update feedback: ' + result.error, 'error');
+
+            return true;
         }
+
+        showToast('Failed to update feedback: ' + (result.error || 'Unknown error'), 'error');
+        return false;
     } catch (error) {
         showToast('Error updating feedback: ' + error.message, 'error');
+        return false;
+    }
+}
+
+async function saveFeedbackSilent() {
+    return updateFeedback(true);
+}
+
+async function persistGradingResults(backup = true) {
+    try {
+        const response = await fetch('/api/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ backup })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            showToast('Failed to save results: ' + (data.error || 'Unknown error'), 'error');
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        showToast('Error saving results: ' + error.message, 'error');
+        return false;
+    }
+}
+
+// Regenerate overall comment using AI
+async function regenerateComment() {
+    if (!state.currentSubmission) return;
+
+    const btn = document.getElementById('regenerate-comment-btn');
+    const originalText = btn.innerHTML;
+
+    try {
+        // Show loading state
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+        const response = await fetch(`/api/submissions/${encodeURIComponent(state.currentSubmission.student_id)}/regenerate-comment`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                components: buildComponentsPayloadFromState()
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Update comment
+            state.currentSubmission.comment = data.comment;
+            document.getElementById('overall-comment').value = data.comment;
+            document.getElementById('comment-chars').textContent = data.comment.length;
+
+            // Mark as edited and update both current submission and list
+            state.currentSubmission.edited = true;
+
+            const subIndex = state.submissions.findIndex((s) => s.student_id === state.currentSubmission.student_id);
+            if (subIndex !== -1) {
+                state.submissions[subIndex].edited = true;
+                state.submissions[subIndex].comment = data.comment;
+            }
+
+            renderSubmissionsList();
+            await saveFeedbackSilent();
+
+            showToast('Comment regenerated successfully', 'success');
+        } else {
+            showToast('Error: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error regenerating comment:', error);
+        showToast('Failed to regenerate comment: ' + error.message, 'error');
+    } finally {
+        // Restore button
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 

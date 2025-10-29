@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from mira.evidence import EvidenceBuilder, EvidencePolicy
-from mira.evidence.models import EvidenceCard
+from mira.libs.evidence import EvidenceBuilder, EvidencePolicy
+from mira.libs.evidence.models import EvidenceCard
 
 
 def _build_cards(tmp_path: Path) -> dict[str, EvidenceCard]:

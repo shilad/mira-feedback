@@ -56,6 +56,7 @@ class EvidenceCard:
     summary: str
     snippets: List[str] = field(default_factory=list)
     stats: Optional[Dict[str, object]] = None
+    truncation_warning: Optional[str] = None  # Set if content was truncated/clamped
 
     def as_prompt_block(self) -> str:
         parts: List[str] = [
@@ -63,6 +64,8 @@ class EvidenceCard:
             f"TYPE: {self.manifest_entry.kind}",
             f"SUMMARY: {self.summary.strip()}",
         ]
+        if self.truncation_warning:
+            parts.append(f"⚠️  WARNING: {self.truncation_warning}")
         if self.stats:
             stats_str = json.dumps(self.stats, indent=2, ensure_ascii=True)
             parts.append(f"STATS:\n{stats_str}")
@@ -77,6 +80,7 @@ class EvidenceCard:
             "summary": self.summary,
             "snippets": self.snippets,
             "stats": self.stats,
+            "truncation_warning": self.truncation_warning,
         }
 
 
@@ -114,14 +118,23 @@ class EvidencePack:
         }
 
 
-def clamp_snippets(snippets: Iterable[str], max_total_bytes: int) -> List[str]:
-    """Ensure combined snippet size stays within policy budget."""
+def clamp_snippets(snippets: Iterable[str], max_total_bytes: int) -> tuple[List[str], bool]:
+    """
+    Ensure combined snippet size stays within policy budget.
+
+    Returns:
+        (clamped_snippets, was_truncated)
+    """
     result: List[str] = []
     running = 0
+    was_truncated = False
+
     for snippet in snippets:
         encoded = snippet.encode("utf-8", errors="ignore")
         if running + len(encoded) > max_total_bytes:
+            was_truncated = True
             break
         result.append(snippet)
         running += len(encoded)
-    return result
+
+    return result, was_truncated

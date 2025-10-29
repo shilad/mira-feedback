@@ -116,7 +116,8 @@ def generate_grades_csv_from_data(submissions_data: list, output_path: Path) -> 
             "Maximum grade": "",
             "Grade can be changed": "",
             "Last modified (grade)": "",
-            "Feedback comments": ""
+            "Feedback comments": "",
+            "Online text": submission.get('online_text', '')
         }
 
         if submission['type'] == 'onlinetext':
@@ -128,8 +129,18 @@ def generate_grades_csv_from_data(submissions_data: list, output_path: Path) -> 
 
     # Write CSV file
     if rows:
-        fieldnames = ["Identifier", "Full name", "Email address", "Status", "Grade",
-                      "Maximum grade", "Grade can be changed", "Last modified (grade)", "Feedback comments"]
+        fieldnames = [
+            "Identifier",
+            "Full name",
+            "Email address",
+            "Status",
+            "Grade",
+            "Maximum grade",
+            "Grade can be changed",
+            "Last modified (grade)",
+            "Feedback comments",
+            "Online text",
+        ]
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
@@ -158,7 +169,8 @@ def generate_grades_csv(submission_dir: Path, output_path: Path) -> Dict[str, st
     Returns:
         Dictionary with statistics about what was processed
     """
-    rows = []
+    # Use dict to track students by ID (avoids duplicates)
+    students = {}
     online_text_count = 0
     file_submission_count = 0
 
@@ -168,25 +180,30 @@ def generate_grades_csv(submission_dir: Path, output_path: Path) -> Dict[str, st
             student_name, student_id, submission_type = parse_moodle_dirname(item.name)
 
             if student_name and student_id:
-                # Create row for this student
-                row = {
-                    "Identifier": f"Participant {student_id}",
-                    "Full name": student_name,
-                    "Email address": "",
-                    "Status": "",
-                    "Grade": "",
-                    "Maximum grade": "",
-                    "Grade can be changed": "",
-                    "Last modified (grade)": "",
-                    "Feedback comments": ""
-                }
+                identifier = f"Participant {student_id}"
 
+                # Only create row if we haven't seen this student yet
+                if identifier not in students:
+                    students[identifier] = {
+                        "Identifier": identifier,
+                        "Full name": student_name,
+                        "Email address": "",
+                        "Status": "",
+                        "Grade": "",
+                        "Maximum grade": "",
+                        "Grade can be changed": "",
+                        "Last modified (grade)": "",
+                        "Feedback comments": ""
+                    }
+
+                # Count submission types
                 if submission_type == "onlinetext":
                     online_text_count += 1
                 else:
                     file_submission_count += 1
 
-                rows.append(row)
+    # Convert to list of rows
+    rows = list(students.values())
 
     # Write CSV file
     if rows:
@@ -280,11 +297,11 @@ def process_html_files(directory: Path, keep_html: bool = False) -> int:
 
 
 def update_grades_csv_from_feedback(restored_dir: Path, csv_path: Path = None) -> Dict[str, any]:
-    """Update moodle_grades.csv with scores from feedback.yaml files.
+    """Update moodle_grades.csv with scores from grading_final.yaml.
 
     Args:
-        restored_dir: Directory containing restored submissions with feedback.yaml files
-        csv_path: Path to moodle_grades.csv (defaults to restored_dir/moodle_grades.csv)
+        restored_dir: Directory containing restored submissions and grading_final.yaml
+        csv_path: Path to moodle_grades.csv (defaults to restored_dir/moodle_grades_final.csv)
 
     Returns:
         Dictionary with statistics about what was updated
@@ -303,6 +320,29 @@ def update_grades_csv_from_feedback(restored_dir: Path, csv_path: Path = None) -
     if not csv_path.exists():
         raise ValueError(f"moodle_grades.csv not found at {csv_path}")
 
+    # Read grading_final.yaml (the authoritative source after review)
+    grading_final_path = restored_dir / 'grading_final.yaml'
+    if not grading_final_path.exists():
+        # Fall back to grading_results.yaml if it exists
+        grading_final_path = restored_dir / 'grading_results.yaml'
+
+    if not grading_final_path.exists():
+        raise ValueError(f"grading_final.yaml not found at {restored_dir}")
+
+    LOG.info(f"Reading grades from {grading_final_path}")
+    with open(grading_final_path, 'r', encoding='utf-8') as f:
+        grading_data = yaml.safe_load(f)
+
+    # Create mapping of student names to grades/comments
+    student_grades = {}
+    for submission in grading_data.get('submissions', []):
+        student_name = submission.get('student_id', '')
+        if student_name:
+            student_grades[student_name] = {
+                'score': submission.get('total_score', ''),
+                'comment': submission.get('comment', '')
+            }
+
     # Read existing CSV
     with open(csv_path, 'r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
@@ -317,49 +357,26 @@ def update_grades_csv_from_feedback(restored_dir: Path, csv_path: Path = None) -
         'errors': []
     }
 
-    # Create a mapping of student names to submission directories
-    submission_dirs = {}
-    for item in restored_dir.iterdir():
-        if item.is_dir():
-            student_name, student_id, submission_type = parse_moodle_dirname(item.name)
-            if student_name and student_id:
-                submission_dirs[student_name] = item
-
-    # Update each row with feedback data
+    # Update each row with feedback data from grading_final.yaml
     for row in rows:
         student_name = row.get("Full name", "")
 
         if not student_name:
             continue
 
-        # Find the submission directory for this student
-        submission_dir = submission_dirs.get(student_name)
+        # Look up grade in grading_final.yaml
+        grade_info = student_grades.get(student_name)
 
-        if not submission_dir:
-            LOG.debug(f"No submission directory found for {student_name}")
-            stats['missing_feedback'] += 1
-            continue
-
-        # Look for feedback.yaml or moodle_feedback.yaml
-        feedback_file = submission_dir / 'feedback.yaml'
-        if not feedback_file.exists():
-            feedback_file = submission_dir / 'moodle_feedback.yaml'
-
-        if not feedback_file.exists():
-            LOG.debug(f"No feedback.yaml or moodle_feedback.yaml found for {student_name}")
+        if not grade_info:
+            LOG.debug(f"No grade found in grading_final.yaml for {student_name}")
             stats['missing_feedback'] += 1
             continue
 
         try:
-            # Read feedback.yaml
-            with open(feedback_file, 'r', encoding='utf-8') as f:
-                feedback_data = yaml.safe_load(f)
-
-            # Extract score and comment
-            total_score = feedback_data.get('total_score', '')
-            comment = feedback_data.get('comment', '')
-
             # Update the row
+            total_score = grade_info['score']
+            comment = grade_info['comment']
+
             row['Grade'] = str(total_score) if total_score != '' else ''
             row['Feedback comments'] = comment
 
@@ -367,17 +384,35 @@ def update_grades_csv_from_feedback(restored_dir: Path, csv_path: Path = None) -
             LOG.debug(f"Updated grade for {student_name}: {total_score}")
 
         except Exception as e:
-            LOG.error(f"Error reading feedback for {student_name}: {e}")
+            LOG.error(f"Error updating grade for {student_name}: {e}")
             stats['errors'].append({
                 'student': student_name,
                 'error': str(e)
             })
 
-    # Write updated CSV
+    # Deduplicate rows based on Identifier (Participant ID)
+    # Moodle exports sometimes contain duplicate rows for the same student
+    seen_identifiers = set()
+    unique_rows = []
+    duplicates_removed = 0
+
+    for row in rows:
+        identifier = row.get("Identifier", "")
+        if identifier and identifier not in seen_identifiers:
+            seen_identifiers.add(identifier)
+            unique_rows.append(row)
+        elif identifier:
+            duplicates_removed += 1
+            LOG.debug(f"Removing duplicate row for {identifier}")
+
+    if duplicates_removed > 0:
+        LOG.info(f"Removed {duplicates_removed} duplicate student entries from CSV")
+
+    # Write updated CSV with unique rows only
     with open(csv_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(unique_rows)
 
     LOG.info(f"Updated moodle_grades.csv: {stats['updated']}/{stats['total_students']} students")
     if stats['missing_feedback'] > 0:

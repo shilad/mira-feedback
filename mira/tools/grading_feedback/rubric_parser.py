@@ -58,6 +58,10 @@ class RubricParser:
         for line in lines:
             line = line.strip()
 
+            # Stop parsing if we hit the Situational Adjustments section
+            if 'situational adjustment' in line.lower():
+                break
+
             # Skip empty lines and separators
             if not line or line.startswith('|-') or all(c in '|-' for c in line):
                 continue
@@ -145,6 +149,10 @@ class RubricParser:
 
         lines = content.split('\n')
         for i, line in enumerate(lines):
+            # Stop parsing if we hit the Situational Adjustments section
+            if 'situational adjustment' in line.lower():
+                break
+
             match = re.match(pattern, line.strip())
             if match:
                 name = match.group(1).strip()
