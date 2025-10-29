@@ -72,6 +72,12 @@ Runs AI grading on multiple submissions in parallel:
 grade-batch --submissions-dir hw/2_redacted/ --rubric rubric.md
 ```
 
+Features:
+- Evidence-based grading with intelligent content extraction
+- Supports notebooks, PDFs, HTML, markdown, code, CSV, JSON/YAML
+- Automatic truncation warnings when files exceed size limits
+- Smart image redaction and content summarization
+
 #### grade-review
 Web interface for reviewing and editing AI-generated feedback:
 ```bash
@@ -80,6 +86,8 @@ grade-review --workdir hw/
 Opens browser with:
 - Side-by-side view of submissions and feedback
 - Editable scores and comments
+- Auto-save with debouncing (changes saved automatically)
+- On-demand comment regeneration
 - Real-time statistics
 - Export to CSV
 - Demo mode toggle to hide student names (for presentations/screenshots)
@@ -154,8 +162,9 @@ openai:
 
 Edit `config/default.yaml` to change:
 - AI model selection for grading (default: gpt-5)
+- Evidence processing limits (max file size: 100KB per file, 500KB total)
 - Presidio PII detection settings
-- File types to process
+- File types to process (code, notebooks, PDFs, HTML, markdown, CSV, JSON/YAML)
 - Exclude patterns
 
 ## Development
@@ -177,7 +186,7 @@ pytest tests/test_grading_feedback.py -v
 mira-grader/
 ├── mira/               # Python package
 │   ├── libs/           # Shared libraries
-│   ├── evidence/       # Evidence builder, models, and plugins
+│   │   └── evidence/   # Evidence builder, models, and plugins
 │   ├── tools/          # Main tools
 │   └── scripts/        # Utility scripts
 ├── config/             # YAML configuration

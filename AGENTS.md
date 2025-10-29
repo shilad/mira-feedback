@@ -32,7 +32,18 @@ grade-review --workdir hw/
 ```
 
 ### Evidence Builder (Default)
-Grading now runs through the deterministic evidence pipeline, which summarizes notebooks, R Markdown, CSVs, JSON/YAML, PDFs, and code before sending anything to the model. Tune its behavior via `config/local.yaml`:
+Grading now runs through the deterministic evidence pipeline, which summarizes notebooks, R Markdown, CSVs, JSON/YAML, PDFs, HTML, and code before sending anything to the model.
+
+**Recent Improvements:**
+- **Truncation tracking**: Evidence cards now include warnings when content exceeds size limits
+- **HTML support**: New HTML plugin processes .html and .htm files
+- **Increased file size limit**: Now 100KB per file (up from 60KB) for better coverage
+- **Smart content processing**:
+  - Enhanced image redaction in markdown/HTML files
+  - Long line truncation for better readability
+  - Intelligent code block handling
+
+Tune behavior via `config/local.yaml`:
 ```yaml
 # config/local.yaml
 grading:
@@ -40,8 +51,12 @@ grading:
     save_artifacts: true         # writes .mira_evidence/evidence.{json,txt} per submission
     cache_dir: ".mira_cache/evidence"
     policy:
-      max_total_bytes: 400000
-      max_pdf_pages: 3
+      max_total_bytes: 500000
+      max_files: 40
+      max_text_bytes_per_file: 100000  # increased from 60000
+      max_notebook_cells: 200
+      max_csv_head_rows: 50
+      max_csv_random_rows: 150
 ```
 Caches default to `.mira_cache/evidence` at the project root and are automatically ignored when compiling evidence cards.
 
@@ -118,8 +133,8 @@ ruff format mira/
 
 ### Package Structure
 The codebase follows a standard Python package layout with `mira/` as the main package:
-- **libs/**: Shared libraries (config_loader, local_anonymizer, text_chunker, llm)
-- **tools/**: Multi-file tools (dir_anonymizer, moodle_prep, grading_feedback)
+- **libs/**: Shared libraries (config_loader, local_anonymizer, text_chunker, llm, evidence)
+- **tools/**: Multi-file tools (dir_anonymizer, moodle_prep, grading_feedback, grading_review_interface)
 - **scripts/**: Single-file utilities (currently empty, ready for simple scripts)
 
 ### Configuration System
@@ -157,19 +172,45 @@ In `tools/grading_feedback/`:
 - **grader.py**: OpenAI-based grading with structured output and async support
   - System prompts explicitly inform the LLM that submissions are anonymized with REDACTED_* tags
   - Grading prompts include privacy notice about anonymization placeholders
+  - Uses adjustments-based feedback model (detailed feedback in score adjustments)
+  - Includes truncation warnings from evidence processing
 - **batch_grader.py**: Parallel batch grading for multiple submissions with async/await
 - **batch_cli.py**: CLI for batch grading with progress tracking
 - **submission_utils.py**: Utilities for processing submission directories
-- **mira/evidence/**: Shared evidence extraction (builder, models, and plugins) producing size-bounded packs for the grader
-- **rubric_parser.py**: Parses rubric criteria from markdown tables
+- **rubric_parser.py**: Parses rubric criteria from markdown tables (ignores situational adjustments section)
 - **models.py**: Pydantic models for grading results
+  - ComponentFeedback uses adjustments list for detailed feedback
+  - GradingResult includes optional truncation warnings
 - **cli.py**: Command-line interface for single submission grading
+
+### Evidence Library
+In `libs/evidence/`:
+- **builder.py**: Orchestrates evidence extraction from submission directories
+- **models.py**: Core data models (EvidenceCard, EvidencePack, EvidencePolicy)
+  - Evidence cards now include truncation warnings when content is clamped
+- **plugins/**: File type handlers
+  - **code.py**: Source code files
+  - **notebook.py**: Jupyter notebooks (.ipynb)
+  - **pdf.py**: PDF documents
+  - **html.py**: HTML files (NEW - supports .html, .htm)
+  - **markdown.py**: Markdown and R Markdown files (enhanced image redaction and line truncation)
+  - **text.py**: Plain text files
+  - **csv_plugin.py**: CSV/TSV files
+  - **json_yaml.py**: JSON and YAML files
+  - **utils.py**: Shared utilities (file reading with size caps)
 
 ### Grading Review Interface
 In `tools/grading_review_interface/`:
 - **app.py**: Flask web application for reviewing and editing AI-generated feedback
+  - DebouncedSaver class for auto-save functionality (2-second debounce)
+  - Endpoints for updating submissions, regenerating comments, and batch operations
 - **review_interface.py**: Core interface logic for loading/saving grading results
+  - Auto-backup on major operations
+  - Comment regeneration using evidence packs
 - **cli.py**: Command-line interface to launch the web interface
 - **templates/index.html**: Main web interface with split-pane layout
+  - Regenerate comment button for on-demand feedback updates
 - **static/app.js**: JavaScript for interactive editing and navigation
+  - Auto-save indicators
+  - Comment regeneration UI
 - **static/style.css**: Styling with demo mode support
